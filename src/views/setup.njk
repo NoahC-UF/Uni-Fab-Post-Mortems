@@ -1,0 +1,17 @@
+{% extends "base.njk" %}
+{% block title %}First-time setup{% endblock %}
+{% block pageclass %}page-narrow{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h1>Welcome</h1>
+  <p class="muted">Create the Admin account. The Admin manages settings, thresholds and users, and can see employee-level data. You can add Reviewers afterwards in Settings.</p>
+  {% if error %}<div class="flash flash-err">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup" class="stack">
+    <label>Your name <input name="displayName" value="{{ form.displayName }}" autocomplete="name" required></label>
+    <label>Username <input name="username" value="{{ form.username }}" autocomplete="username" required></label>
+    <label>Password <small class="muted">at least 8 characters</small><input type="password" name="password" autocomplete="new-password" required minlength="8"></label>
+    <label>Confirm password <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label>
+    <button class="btn btn-primary" type="submit">Create Admin account</button>
+  </form>
+</div>
+{% endblock %}

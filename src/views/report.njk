@@ -1,0 +1,105 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import flagchip, statuschip, varcell %}
+{% set j = snap.job %}
+{% block title %}Report · Job {{ j.jobNum }}{% endblock %}
+{% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
+{% block content %}
+<div class="no-print row" style="margin-bottom:12px">
+  <button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+  <a class="btn" href="/jobs/{{ j.jobNum }}">Back to job</a>
+  <span class="muted">In the print window choose "Save as PDF" as the printer.</span>
+</div>
+<div class="report">
+  <div class="report-head">
+    <div>
+      <h1>Post-mortem report · Job {{ j.jobNum }}</h1>
+      <div>{{ j.partNum }} · {{ j.partDescription }}</div>
+      <div class="muted">{{ j.custName or '(no sales order)' }}{% if j.orderNum %} · Order {{ j.orderNum }}{% endif %} · Qty {{ j.qtyCompleted | qty }} of {{ j.prodQty | qty }} · {{ ('Closed ' ~ (j.closedDate | dateOnly)) if j.closed else 'In progress' }}</div>
+    </div>
+    <div class="right">
+      {{ flagchip(snap.flag, ('Red' if snap.flag == 'red' else ('Yellow' if snap.flag == 'yellow' else 'Within tolerance'))) }}
+      {% if pm %}<div style="margin-top:6px">{{ statuschip(pm.status) }}</div>
+      <div class="muted">Owner: {{ pm.owner_name or 'Unassigned' }}{% if pm.review_date %}<br>Review date: {{ pm.review_date }}{% endif %}</div>{% endif %}
+    </div>
+  </div>
+
+  {% if pm %}<div class="muted" style="margin-bottom:10px">Numbers are the <b>snapshot taken {{ pm.snapshot_taken_at | dateTime }}</b>.{% if changes.length %} <b>Live data has changed since:</b> {% for c in changes %}{{ c.label }}{{ ' (' ~ c.before ~ ' to ' ~ c.after ~ ' ' ~ c.unit ~ ')' if c.unit }}{{ '; ' if not loop.last }}{% endfor %}.{% endif %}</div>
+  {% else %}<div class="muted" style="margin-bottom:10px">No post-mortem has been started: these are the live numbers.</div>{% endif %}
+
+  <section>
+    <div class="kv">
+      <div><span>Labour variance</span><b>{{ varcell(snap.totals.labour.varDollars) }}</b> <small>({{ snap.totals.labour.estHours | hrs }} est / {{ snap.totals.labour.actHours | hrs }} actual hrs)</small></div>
+      <div><span>Material variance</span><b>{{ varcell(snap.totals.material.varDollars) }}</b> <small>(usage {{ snap.totals.material.usageVar | smoney }}, cost basis {{ snap.totals.material.priceVar | smoney }})</small></div>
+      <div><span>Net variance</span><b>{{ varcell(snap.totals.netDollars) }}</b></div>
+      <div><span>$ impact (flagged lines)</span><b>{{ snap.totals.impactDollars | money0 }}</b> <small>over {{ snap.totals.overDollars | money0 }} / under {{ snap.totals.underDollars | money0 }}</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Estimated vs actual hours by operation</h2>
+    <div class="chart-box" style="height:260px"><canvas id="opChart"></canvas></div>
+    <script type="application/json" id="chartData">{{ chart | json | safe }}</script>
+  </section>
+
+  <section>
+    <h2>Operations</h2>
+    <table class="t">
+      <thead><tr><th>Op</th><th class="num">Est hrs</th><th class="num">Actual hrs</th><th class="num">Setup var</th><th class="num">Run var</th><th class="num">Var %</th><th class="num">$ var</th><th>Flag</th></tr></thead>
+      <tbody>
+      {% for o in ops %}
+        <tr>
+          <td><b>{{ o.oprSeq }}</b> {{ o.opCode }}{% if o.subcontract %} <span class="tag">subcontract</span>{% endif %}</td>
+          <td class="num">{{ o.est.total | hrs }}</td><td class="num">{{ o.act.total | hrs }}</td>
+          <td class="num">{{ varcell(o.var.setupHrs, 'hrs') }}</td><td class="num">{{ varcell(o.var.runHrs, 'hrs') }}</td>
+          <td class="num">{% if o.counts %}{{ varcell(o.varPct, 'pct') }}{% if o.perPiece.applies %} <small>per pc</small>{% endif %}{% endif %}</td>
+          <td class="num">{% if o.counts %}{{ varcell(o.varDollars) }}{% endif %}</td>
+          <td>{% if o.counts %}{% if o.unplanned and o.flag != 'green' %}<span class="chip chip-red">Unplanned</span>{% else %}{{ flagchip(o.flag) }}{% endif %}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if flaggedMaterials.length %}
+  <section>
+    <h2>Material lines flagged</h2>
+    <table class="t">
+      <thead><tr><th>Material</th><th class="num">Expected qty</th><th class="num">Actual qty</th><th class="num">$ var</th><th class="num">Usage $</th><th class="num">Cost basis $</th><th>Flag</th></tr></thead>
+      <tbody>
+      {% for m in flaggedMaterials %}
+        <tr><td>{{ m.partNum }} <small>{{ m.description }}</small>{% if m.backflush %} <span class="tag">backflush</span>{% endif %}</td>
+          <td class="num">{{ m.expectedQty | qty }}</td><td class="num">{{ m.actualQty | qty }}</td>
+          <td class="num">{{ varcell(m.dollarVar) }}</td><td class="num">{{ varcell(m.usageVar) }}</td><td class="num">{{ varcell(m.priceVar) }}</td>
+          <td>{% if m.pending %}<span class="chip chip-grey">Pending</span>{% else %}{{ flagchip(m.flag) }}{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if pm %}
+  <section>
+    <h2>Root causes</h2>
+    {% if causes.length %}<ul class="list-plain">{% for c in causes %}<li>{{ c }}</li>{% endfor %}</ul>{% else %}<div class="muted">None recorded yet.</div>{% endif %}
+    {% if pm.dismiss_reason %}<p><b>Dismissed:</b> {{ pm.dismiss_reason }}</p>{% endif %}
+  </section>
+  <section>
+    <h2>Action items</h2>
+    {% if pm.actions.length %}
+    <table class="t"><thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>{% for a in pm.actions %}<tr><td>{{ a.description }}</td><td>{{ a.owner_name or 'Unassigned' }}</td><td>{{ a.due_date or '' }}</td><td>{{ {'open': 'Open', 'in_progress': 'In progress', 'done': 'Done'}[a.status] }}</td></tr>{% endfor %}</tbody></table>
+    {% else %}<div class="muted">No action items yet.</div>{% endif %}
+  </section>
+  <section>
+    <h2>Notes</h2>
+    {% for n in pm.notes %}<div class="note"><div class="meta"><b>{{ n.author or 'Unknown' }}</b> · {{ n.created_at | dateTime }} UTC</div><p>{{ n.body }}</p></div>{% else %}<div class="muted">No notes.</div>{% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="muted" style="border-top:1px solid var(--line);padding-top:8px;font-size:.85rem">
+    Thresholds: green below {{ thresholds.greenMax | pct }}, yellow to {{ thresholds.yellowMax | pct }}, red above; flagged only when the variance is at least {{ thresholds.minHours }} hrs or {{ thresholds.minDollars | money0 }}.
+    Only completed operations count on in-progress jobs. Generated {{ generatedAt }} UTC.
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/job-detail.js" defer></script>{% endblock %}

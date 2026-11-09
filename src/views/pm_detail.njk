@@ -1,0 +1,181 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons %}
+{% set j = snap.job %}
+{% set done = (pm.status == 'closed' or pm.status == 'dismissed') %}
+{% block title %}Post-mortem · Job {{ j.jobNum }}{% endblock %}
+
+{# every form here swaps just the #pm-main block and the flash message, no full page reload #}
+{% macro hx(id) %}hx-post="{{ id }}" hx-target="#pm-main" hx-select="#pm-main" hx-select-oob="#flash" hx-swap="outerHTML"{% endmacro %}
+
+{% block content %}
+<div id="pm-main">
+<div class="page-head">
+  <div>
+    <h1>Post-mortem · Job <a href="/jobs/{{ j.jobNum }}">{{ j.jobNum }}</a></h1>
+    <div class="row">{{ statuschip(pm.status) }} <span class="muted">{{ j.partNum }} · {{ j.partDescription }} · {{ j.custName or '(no order)' }}</span></div>
+  </div>
+  <div class="row no-print">
+    <a class="btn" href="/jobs/{{ j.jobNum }}">Live job detail</a>
+    <a class="btn" href="/jobs/{{ j.jobNum }}/report" target="_blank">Printable report</a>
+  </div>
+</div>
+
+{% if pm.status == 'dismissed' %}
+<div class="flash flash-info"><b>Dismissed:</b> {{ pm.dismiss_reason }}</div>
+{% else %}
+<div class="stepper">
+  {% for s in steps %}<div class="step {{ 'now' if s == pm.status else ('done' if loop.index0 < stepIndex) }}">{{ STATUS_LABELS[s] }}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if changes.length %}
+<div class="flash flash-warn">
+  <b>Epicor data has changed since this snapshot was taken ({{ pm.snapshot_taken_at | dateTime }}).</b>
+  The numbers on this page are the frozen copy from the start of the review.
+  {% for c in changes %}<div>&bull; {{ c.label }}{% if c.unit %}: {{ c.before }} &rarr; {{ c.after }} {{ c.unit }}{% endif %}</div>{% endfor %}
+  <form method="post" action="/postmortems/{{ pm.id }}/resnapshot" class="inline no-print" {{ hx('/postmortems/' ~ pm.id ~ '/resnapshot') | safe }} style="margin-top:6px">
+    {{ csrfField(csrf) }}<button class="btn btn-sm" type="submit">Retake snapshot from current data</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <h2>Review</h2>
+      <form method="post" action="/postmortems/{{ pm.id }}/details" {{ hx('/postmortems/' ~ pm.id ~ '/details') | safe }} class="form-inline">
+        {{ csrfField(csrf) }}
+        <label>Owner
+          <select name="owner"><option value="">Unassigned</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if u.id == pm.owner_user_id }}>{{ u.name }}</option>{% endfor %}</select></label>
+        <label>Review date <input type="date" name="reviewDate" value="{{ pm.review_date }}"></label>
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <div class="muted" style="margin-top:8px">Started {{ pm.created_at | dateTime }} by {{ pm.created_by_name or 'unknown' }} · last change {{ pm.updated_at | dateTime }}</div>
+
+      <h3 style="margin-top:16px">Status</h3>
+      <div class="row" x-data="{ dismiss: false }">
+        {% if not done %}
+          {% set nextStatus = steps[stepIndex + 1] %}
+          {% if nextStatus %}
+          <form method="post" action="/postmortems/{{ pm.id }}/status" {{ hx('/postmortems/' ~ pm.id ~ '/status') | safe }} class="inline">
+            {{ csrfField(csrf) }}<input type="hidden" name="status" value="{{ nextStatus }}">
+            <button class="btn btn-primary" type="submit">Move to {{ STATUS_LABELS[nextStatus] }} &rarr;</button></form>
+          {% endif %}
+          <button class="btn btn-danger" type="button" @click="dismiss = !dismiss">Dismiss...</button>
+          <form method="post" action="/postmortems/{{ pm.id }}/status" {{ hx('/postmortems/' ~ pm.id ~ '/status') | safe }} x-show="dismiss" x-cloak class="form-inline" style="flex-basis:100%">
+            {{ csrfField(csrf) }}<input type="hidden" name="status" value="dismissed">
+            <label style="flex:1">Reason (e.g. data entry error) <input name="reason" required maxlength="300"></label>
+            <button class="btn btn-danger" type="submit">Dismiss job</button>
+          </form>
+        {% else %}
+          <form method="post" action="/postmortems/{{ pm.id }}/status" {{ hx('/postmortems/' ~ pm.id ~ '/status') | safe }} class="inline">
+            {{ csrfField(csrf) }}<input type="hidden" name="status" value="under_review">
+            <button class="btn" type="submit">Reopen review</button></form>
+        {% endif %}
+      </div>
+      <div class="muted" style="margin-top:6px">To close: pick a root cause and finish every action item. Moving forward needs: root cause found (1+ cause), actions assigned (cause + 1+ action).</div>
+    </div>
+
+    <div class="card">
+      <h2>Root causes</h2>
+      <form method="post" action="/postmortems/{{ pm.id }}/causes" {{ hx('/postmortems/' ~ pm.id ~ '/causes') | safe }}>
+        {{ csrfField(csrf) }}
+        <div class="causes">
+          {% for c in causes %}<label class="check"><input type="checkbox" name="cause" value="{{ c.id }}" {{ 'checked' if c.id in pm.rootCauseIds }}> {{ c.name }}</label>{% endfor %}
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-primary" type="submit">Save root causes</button> <span class="muted">Pick every cause that applies.</span></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Notes</h2>
+      <form method="post" action="/postmortems/{{ pm.id }}/notes" {{ hx('/postmortems/' ~ pm.id ~ '/notes') | safe }} class="stack-sm">
+        {{ csrfField(csrf) }}
+        <textarea name="body" placeholder="What did we learn? Who needs to know? (Notes are timestamped and signed with your name.)" required maxlength="5000"></textarea>
+        <div><button class="btn btn-primary" type="submit">Add note</button></div>
+      </form>
+      <div style="margin-top:14px">
+        {% for n in pm.notes %}
+          <div class="note"><div class="meta"><b>{{ n.author or 'Unknown' }}</b> · {{ n.created_at | dateTime }} UTC</div><p>{{ n.body }}</p></div>
+        {% else %}<div class="muted">No notes yet.</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Action items</h2>
+      {% if pm.actions.length %}
+      <table class="t">
+        <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for a in pm.actions %}
+          <tr>
+            <td>{{ a.description }}</td>
+            <td>{{ a.owner_name or 'Unassigned' }}</td>
+            <td class="nowrap">{{ a.due_date or '' }}{% if a.status != 'done' and a.due_date and a.due_date < today %} <span class="chip chip-red">overdue</span>{% endif %}</td>
+            <td>
+              <form method="post" action="/actions/{{ a.id }}/status" {{ hx('/actions/' ~ a.id ~ '/status') | safe }} class="inline">
+                {{ csrfField(csrf) }}<input type="hidden" name="back" value="/postmortems/{{ pm.id }}">
+                <select name="status" onchange="this.form.requestSubmit()" style="width:auto">
+                  <option value="open" {{ 'selected' if a.status == 'open' }}>Open</option>
+                  <option value="in_progress" {{ 'selected' if a.status == 'in_progress' }}>In progress</option>
+                  <option value="done" {{ 'selected' if a.status == 'done' }}>Done</option>
+                </select>
+              </form>
+            </td>
+            <td><form method="post" action="/actions/{{ a.id }}/delete" {{ hx('/actions/' ~ a.id ~ '/delete') | safe }} class="inline" onsubmit="return confirm('Remove this action item?')">
+              {{ csrfField(csrf) }}<input type="hidden" name="back" value="/postmortems/{{ pm.id }}"><button class="btn btn-sm btn-danger" type="submit" title="Remove">&times;</button></form></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="muted">No action items yet.</div>{% endif %}
+      <h3 style="margin-top:16px">Add an action</h3>
+      <form method="post" action="/postmortems/{{ pm.id }}/actions" {{ hx('/postmortems/' ~ pm.id ~ '/actions') | safe }} class="stack-sm">
+        {{ csrfField(csrf) }}
+        <label>What needs to happen? <input name="description" required maxlength="1000" placeholder="e.g. Update WELD routing hours for part {{ j.partNum }}"></label>
+        <div class="form-inline">
+          <label>Owner <select name="owner"><option value="">Unassigned</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></label>
+          <label>Due <input type="date" name="due"></label>
+          <button class="btn btn-primary" type="submit">Add action</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Numbers at review start <small class="muted">(frozen {{ pm.snapshot_taken_at | dateTime }} UTC)</small></h2>
+      <div class="kv" style="margin-bottom:12px">
+        <div><span>Labour variance</span><b>{{ varcell(snap.totals.labour.varDollars) }}</b></div>
+        <div><span>Material variance</span><b>{{ varcell(snap.totals.material.varDollars) }}</b></div>
+        <div><span>Net</span><b>{{ varcell(snap.totals.netDollars) }}</b></div>
+        <div><span>$ impact</span><b>{{ snap.totals.impactDollars | money0 }}</b></div>
+      </div>
+      <div class="muted" style="margin-bottom:6px">Thresholds then: green &lt; {{ (snap.meta.settings.greenMax | pct) if snap.meta else '' }}, red &gt; {{ (snap.meta.settings.yellowMax | pct) if snap.meta else '' }}; minimum {{ snap.meta.settings.minHours if snap.meta }} hrs or {{ snap.meta.settings.minDollars | money0 if snap.meta }}.</div>
+      <h3>Labour</h3>
+      <div class="table-wrap"><table class="t">
+        <thead><tr><th>Op</th><th class="num">Est</th><th class="num">Actual</th><th class="num">Var %</th><th class="num">$ var</th><th>Flag</th></tr></thead>
+        <tbody>
+        {% for o in snap.ops %}{% if o.counts %}
+          <tr><td><b>{{ o.oprSeq }}</b> {{ o.opCode }}</td><td class="num">{{ o.est.total | hrs }}</td><td class="num">{{ o.act.total | hrs }}</td>
+            <td class="num">{{ varcell(o.varPct, 'pct') }}</td><td class="num">{{ varcell(o.varDollars) }}</td>
+            <td>{% if o.unplanned and o.flag != 'green' %}<span class="chip chip-red">Unplanned</span>{% else %}{{ flagchip(o.flag) }}{% endif %}</td></tr>
+        {% endif %}{% endfor %}
+        </tbody></table></div>
+      {% if snap.materials.length %}
+      <h3 style="margin-top:12px">Material</h3>
+      <div class="table-wrap"><table class="t">
+        <thead><tr><th>Part</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">$ var</th><th class="num">Usage</th><th class="num">Cost basis</th><th>Flag</th></tr></thead>
+        <tbody>
+        {% for m in snap.materials %}
+          <tr><td>{{ m.partNum }}{% if m.backflush %} <span class="tag">backflush</span>{% endif %}</td><td class="num">{{ m.expectedQty | qty }}</td><td class="num">{{ m.actualQty | qty }}</td>
+            <td class="num">{{ varcell(m.dollarVar) }}</td><td class="num">{{ varcell(m.usageVar) }}</td><td class="num">{{ varcell(m.priceVar) }}</td>
+            <td>{% if m.pending %}<span class="chip chip-grey">Pending</span>{% else %}{{ flagchip(m.flag) }}{% endif %}</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.njk" %}
+{% block title %}{{ title }}{% endblock %}
+{% block pageclass %}page-narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <p><a class="btn" href="/">Back to the dashboard</a></p>
+</div>
+{% endblock %}

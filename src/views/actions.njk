@@ -1,0 +1,50 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import statuschip, csrfField %}
+{% block title %}Open Actions{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Open Actions</h1><div class="muted">Action items from every post-mortem, soonest due first.</div></div>
+  <form method="get" action="/actions" class="form-inline">
+    <label>Show
+      <select name="status" onchange="this.form.submit()">
+        <option value="open" {{ 'selected' if status == 'open' }}>Open</option>
+        <option value="overdue" {{ 'selected' if status == 'overdue' }}>Overdue</option>
+        <option value="done" {{ 'selected' if status == 'done' }}>Done</option>
+        <option value="all" {{ 'selected' if status == 'all' }}>Everything</option>
+      </select></label>
+    <label>Owner
+      <select name="owner" onchange="this.form.submit()">
+        <option value="">Anyone</option><option value="none" {{ 'selected' if owner == 'none' }}>Unassigned</option>
+        {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if owner == u.id ~ '' }}>{{ u.name }}</option>{% endfor %}
+      </select></label>
+  </form>
+</div>
+<div class="card">
+{% if rows.length %}
+<div class="table-wrap"><table class="t">
+  <thead><tr><th>Action</th><th>Job</th><th>Customer / part</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for a in rows %}
+    <tr>
+      <td>{{ a.description }}</td>
+      <td class="nowrap"><a href="/postmortems/{{ a.post_mortem_id }}">{{ a.job_num }}</a></td>
+      <td>{{ a.cust_name or '(no order)' }}<br><small>{{ a.part_num }}</small></td>
+      <td>{{ a.owner_name or 'Unassigned' }}</td>
+      <td class="nowrap">{{ a.due_date or '' }}{% if a.overdue %} <span class="chip chip-red">overdue</span>{% endif %}</td>
+      <td>
+        <form method="post" action="/actions/{{ a.id }}/status" class="inline">
+          {{ csrfField(csrf) }}<input type="hidden" name="back" value="/actions">
+          <select name="status" onchange="this.form.submit()" style="width:auto">
+            <option value="open" {{ 'selected' if a.status == 'open' }}>Open</option>
+            <option value="in_progress" {{ 'selected' if a.status == 'in_progress' }}>In progress</option>
+            <option value="done" {{ 'selected' if a.status == 'done' }}>Done</option>
+          </select>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<div class="empty">{{ 'Nothing overdue.' if status == 'overdue' else 'No action items here.' }}</div>{% endif %}
+</div>
+{% endblock %}

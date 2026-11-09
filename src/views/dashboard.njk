@@ -1,0 +1,98 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import flagchip, statuschip, varcell %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="muted">Closed jobs from {{ f.from }} to {{ f.to }}, plus jobs still in progress.</div>
+  </div>
+  <form method="get" action="/" class="form-inline no-print">
+    <label>From <input type="date" name="from" value="{{ f.from }}"></label>
+    <label>To <input type="date" name="to" value="{{ f.to }}"></label>
+    <button class="btn btn-primary" type="submit">Apply</button>
+  </form>
+</div>
+<div class="row no-print" style="margin-bottom:6px">
+  <form method="post" action="/sync" class="inline" title="Pulls open jobs and anything closed since the last sync">
+    <input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn btn-sm" type="submit">&#8635; Sync now</button></form>
+  <small class="muted">{% if lastSync %}Last sync {{ lastSync.started_at | dateTime }} UTC ({{ lastSync.status }}){% else %}Never synced{% endif %}</small>
+  <span class="muted">|</span>
+  {% for p in presets %}<a class="btn btn-sm {{ 'btn-primary' if p.on }}" href="/?from={{ p.from }}&to={{ p.to }}">{{ p.label }}</a>{% endfor %}
+</div>
+
+{% if not hasData %}
+<div class="card">
+  <h2>No job data yet</h2>
+  <p>Nothing has been synced. {% if user.isAdmin %}Go to <a href="/settings">Settings</a> and press <b>Sync now</b>.{% else %}Ask an Admin to run a sync.{% endif %}</p>
+</div>
+{% else %}
+
+<div class="tiles">
+  <div class="tile t-blue">
+    <div class="label">Jobs reviewed</div>
+    <div class="value">{{ d.reviewed }}</div>
+    <div class="sub">closed in period · {{ d.inProgress }} in progress</div>
+  </div>
+  <div class="tile {{ 't-green' if d.withinTolerancePct !== null and d.withinTolerancePct >= 0.7 else 't-yellow' }}">
+    <div class="label">Within tolerance</div>
+    <div class="value">{{ (d.withinTolerancePct | pct) if d.withinTolerancePct !== null else 'n/a' }}</div>
+    <div class="sub">{{ d.green }} green · {{ d.yellow }} yellow · {{ d.red }} red</div>
+  </div>
+  <div class="tile t-red">
+    <div class="label">Total $ over</div>
+    <div class="value">{{ d.overDollars | money0 }}</div>
+    <div class="sub">flagged lines, closed jobs</div>
+  </div>
+  <div class="tile">
+    <div class="label">Total $ under</div>
+    <div class="value" style="color:var(--blue)">{{ d.underDollars | money0 }}</div>
+    <div class="sub">possible over-quoting</div>
+  </div>
+  <div class="tile t-yellow">
+    <div class="label">Open post-mortems</div>
+    <div class="value">{{ d.openPostMortems }}</div>
+    <div class="sub">{{ d.awaitingReview }} flagged job{{ '' if d.awaitingReview == 1 else 's' }} awaiting review{% if d.overdueActions %} · <span class="neg-bad">{{ d.overdueActions }} overdue action{{ '' if d.overdueActions == 1 else 's' }}</span>{% endif %}</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="page-head" style="margin-bottom:6px"><h2>Top 10 biggest $ misses</h2><a href="/jobs?from={{ f.from }}&to={{ f.to }}">All flagged jobs &rarr;</a></div>
+    {% if d.top.length %}
+    <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Flag</th><th>Job</th><th>Customer / part</th><th>Biggest miss</th><th class="num">$ impact</th><th class="num">Net</th><th>Review</th></tr></thead>
+      <tbody>
+      {% for r in d.top %}
+        <tr>
+          <td>{{ flagchip(r.flag) }}</td>
+          <td class="nowrap"><a href="/jobs/{{ r.job_num }}">{{ r.job_num }}</a>{% if not r.closed %} <span class="tag">in progress</span>{% endif %}</td>
+          <td>{{ r.cust_name or '(no order)' }}<br><small>{{ r.part_num }}</small></td>
+          <td>{% if r.topMiss %}{{ r.topMiss.op_code or ('Material ' + r.topMiss.part_num) }} {{ varcell(r.topMiss.var_dollars) }}{% endif %}</td>
+          <td class="num"><b>{{ r.impact_dollars | money0 }}</b></td>
+          <td class="num">{{ varcell(r.net_dollars) }}</td>
+          <td>{% if r.pm_id %}<a href="/postmortems/{{ r.pm_id }}">{{ statuschip(r.pm_status) }}</a>{% else %}<a class="btn btn-sm" href="/jobs/{{ r.job_num }}">Review</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="empty">No flagged jobs in this period.</div>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Where the variance is coming from</h2>
+    <div class="muted" style="margin-bottom:8px">Flagged lines by operation (materials grouped), in dollars.</div>
+    {% if d.byOp.length %}
+    <div class="chart-box"><canvas id="byOp"></canvas></div>
+    <script type="application/json" id="byOpData">{{ d.byOp | json | safe }}</script>
+    {% else %}<div class="empty">Nothing flagged in this period.</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/dashboard.js" defer></script>
+{% endblock %}

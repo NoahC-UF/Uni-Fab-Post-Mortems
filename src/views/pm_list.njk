@@ -1,0 +1,40 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import flagchip, statuschip %}
+{% block title %}Post-Mortems{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Post-Mortems</h1><div class="muted">Reviews that have been started. To start one, open a flagged job.</div></div>
+  <form method="get" action="/postmortems" class="form-inline">
+    <label>Show
+      <select name="status" onchange="this.form.submit()">
+        <option value="open" {{ 'selected' if status == 'open' }}>Open reviews</option>
+        <option value="done" {{ 'selected' if status == 'done' }}>Closed / dismissed</option>
+        <option value="all" {{ 'selected' if status == 'all' }}>Everything</option>
+      </select></label>
+    <label>Owner
+      <select name="owner" onchange="this.form.submit()"><option value="">Anyone</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if owner == u.id ~ '' }}>{{ u.name }}</option>{% endfor %}</select></label>
+  </form>
+</div>
+<div class="card">
+{% if rows.length %}
+<div class="table-wrap"><table class="t">
+  <thead><tr><th>Job</th><th>Customer / part</th><th>Status</th><th>Root causes</th><th>Owner</th><th>Review date</th><th class="num">Open actions</th><th class="num">$ impact now</th><th>Updated</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="nowrap"><a href="/postmortems/{{ r.id }}"><b>{{ r.job_num }}</b></a>{% if r.changed %} <span class="chip chip-yellow" title="Epicor data changed since the snapshot">data changed</span>{% endif %}</td>
+      <td>{{ r.cust_name or '(no order)' }}<br><small>{{ r.part_num }}</small></td>
+      <td>{{ statuschip(r.status) }}{% if r.dismiss_reason %}<br><small class="muted">{{ r.dismiss_reason }}</small>{% endif %}</td>
+      <td><small>{{ r.causes or '' }}</small></td>
+      <td>{{ r.owner_name or 'Unassigned' }}</td>
+      <td class="nowrap">{{ r.review_date or '' }}</td>
+      <td class="num">{{ r.open_actions or '' }}</td>
+      <td class="num">{{ r.impact_dollars | money0 }}</td>
+      <td class="nowrap">{{ r.updated_at | dateTime }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<div class="empty">No post-mortems here yet.</div>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,162 @@
+﻿import ExcelJS from 'exceljs';
+import { filterOptions, filterQuery, listJobs, parseFilters, topMissLabel } from '../queries.js';
+import { buildJobView } from '../jobView.js';
+import { createPostMortem, getPostMortemByJob, snapshotChanges } from '../postmortems.js';
+import { UserError, notFound } from '../errors.js';
+import { STATUS_LABELS } from '../format.js';
+
+const JOB_RE = /^[A-Za-z0-9._-]{1,30}$/;
+const FLAG_RANK = { red: 3, yellow: 2, green: 1 };
+
+function clientRows(rows) {
+  return rows.map((r) => ({
+    job: r.job_num,
+    part: r.part_num,
+    partDesc: r.part_description,
+    customer: r.cust_name || '',
+    state: r.closed ? 'Closed' : 'In progress',
+    closedDate: r.closed_date || '',
+    flag: r.flag,
+    lines: r.flagged_lines,
+    impact: r.impact_dollars,
+    over: r.over_dollars,
+    under: r.under_dollars,
+    net: r.net_dollars,
+    labour: r.labour_var_dollars,
+    material: r.material_var_dollars,
+    miss: topMissLabel(r.topMiss),
+    missDollars: r.topMiss?.var_dollars ?? null,
+    pmId: r.pm_id,
+    pmStatus: r.pm_status || 'flagged',
+    pmLabel: STATUS_LABELS[r.pm_status || 'flagged'],
+  }));
+}
+
+export default async function jobRoutes(app) {
+  const { db, now } = app.ctx;
+
+  // ------------------------------------------------------------ flagged jobs list
+  app.get('/jobs', async (req, reply) => {
+    const f = parseFilters(req.query, now(), 90);
+    const rows = listJobs(db, f);
+    const defaults = parseFilters({}, now(), 90);
+    return reply.page('jobs_list.njk', {
+      f,
+      rows: clientRows(rows),
+      total: rows.length,
+      options: filterOptions(db),
+      exportQuery: filterQuery(f, defaults),
+    });
+  });
+
+  app.get('/jobs/export.xlsx', async (req, reply) => {
+    const f = parseFilters(req.query, now(), 90);
+    const rows = listJobs(db, f);
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Uni-Fab Post-Mortem';
+    wb.created = now();
+
+    const ws = wb.addWorksheet('Flagged jobs');
+    ws.columns = [
+      { header: 'Flag', key: 'flag', width: 8 },
+      { header: 'Job', key: 'job', width: 10 },
+      { header: 'Part', key: 'part', width: 16 },
+      { header: 'Description', key: 'desc', width: 30 },
+      { header: 'Customer', key: 'customer', width: 26 },
+      { header: 'Status', key: 'state', width: 12 },
+      { header: 'Closed', key: 'closed', width: 12 },
+      { header: 'Qty made', key: 'qty', width: 10 },
+      { header: 'Flagged lines', key: 'lines', width: 10 },
+      { header: '$ impact', key: 'impact', width: 12 },
+      { header: '$ over', key: 'over', width: 12 },
+      { header: '$ under', key: 'under', width: 12 },
+      { header: '$ net', key: 'net', width: 12 },
+      { header: 'Labour $ var', key: 'labour', width: 13 },
+      { header: 'Material $ var', key: 'material', width: 14 },
+      { header: 'Biggest miss', key: 'miss', width: 22 },
+      { header: 'Biggest miss $', key: 'missDollars', width: 14 },
+      { header: 'Post-mortem', key: 'pm', width: 18 },
+    ];
+    for (const r of rows) {
+      ws.addRow({
+        flag: r.flag.toUpperCase(), job: r.job_num, part: r.part_num, desc: r.part_description, customer: r.cust_name || '',
+        state: r.closed ? 'Closed' : 'In progress', closed: r.closed_date || '', qty: r.qty_completed, lines: r.flagged_lines,
+        impact: r.impact_dollars, over: r.over_dollars, under: r.under_dollars, net: r.net_dollars, labour: r.labour_var_dollars,
+        material: r.material_var_dollars, miss: topMissLabel(r.topMiss), missDollars: r.topMiss?.var_dollars ?? null,
+        pm: STATUS_LABELS[r.pm_status || 'flagged'],
+      });
+    }
+    for (const k of ['impact', 'over', 'under', 'net', 'labour', 'material', 'missDollars']) ws.getColumn(k).numFmt = '$#,##0.00;[Red]-$#,##0.00';
+    const fill = { red: 'FFFDE4E1', yellow: 'FFFFF3C4', green: 'FFE3F4EA' };
+    ws.eachRow((row, i) => {
+      if (i === 1) return;
+      const f = String(row.getCell('flag').value).toLowerCase();
+      if (fill[f]) row.getCell('flag').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill[f] } };
+    });
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14395B' } };
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    if (rows.length) ws.autoFilter = { from: 'A1', to: { row: rows.length + 1, column: ws.columns.length } };
+
+    const ls = wb.addWorksheet('Flagged lines');
+    ls.columns = [
+      { header: 'Job', key: 'job', width: 10 }, { header: 'Type', key: 'kind', width: 10 }, { header: 'Op code / part', key: 'what', width: 20 },
+      { header: 'Resource group', key: 'rg', width: 14 }, { header: 'Flag', key: 'flag', width: 8 }, { header: 'Direction', key: 'dir', width: 10 },
+      { header: 'Unplanned', key: 'unp', width: 10 }, { header: 'Variance hrs', key: 'hrs', width: 13 }, { header: 'Variance %', key: 'pct', width: 12 },
+      { header: 'Variance $', key: 'usd', width: 13 },
+    ];
+    const jobNums = rows.map((r) => r.job_num);
+    for (let i = 0; i < jobNums.length; i += 400) {
+      const chunk = jobNums.slice(i, i + 400);
+      const lines = db
+        .prepare(`SELECT * FROM flag_lines WHERE job_num IN (${chunk.map(() => '?').join(',')}) ORDER BY job_num, ABS(var_dollars) DESC`)
+        .all(...chunk);
+      for (const l of lines) {
+        ls.addRow({ job: l.job_num, kind: l.kind === 'op' ? 'Labour' : 'Material', what: l.op_code || l.part_num, rg: l.resource_grp_id || '', flag: l.flag.toUpperCase(), dir: l.direction, unp: l.unplanned ? 'Yes' : '', hrs: l.var_hours, pct: l.var_pct, usd: l.var_dollars });
+      }
+    }
+    ls.getColumn('pct').numFmt = '0.0%';
+    ls.getColumn('usd').numFmt = '$#,##0.00;[Red]-$#,##0.00';
+    ls.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ls.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14395B' } };
+    ls.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const buf = await wb.xlsx.writeBuffer();
+    const stamp = now().toISOString().slice(0, 10);
+    return reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="flagged-jobs-${stamp}.xlsx"`)
+      .send(Buffer.from(buf));
+  });
+
+  // ------------------------------------------------------------------ job detail
+  app.get('/jobs/:jobNum', async (req, reply) => {
+    const { jobNum } = req.params;
+    if (!JOB_RE.test(jobNum)) throw notFound('That job');
+    const view = buildJobView(db, jobNum, { isAdmin: req.user.isAdmin });
+    if (!view) throw notFound(`Job ${jobNum}`);
+    const pm = getPostMortemByJob(db, jobNum);
+    const changes = pm ? snapshotChanges(db, pm).changes : [];
+    return reply.page('job_detail.njk', { v: view, pm, changes, rank: FLAG_RANK });
+  });
+
+  // Start a post-mortem: freezes a snapshot of the job's current numbers.
+  app.post('/jobs/:jobNum/postmortem', async (req, reply) => {
+    const { jobNum } = req.params;
+    if (!JOB_RE.test(jobNum)) throw notFound('That job');
+    const existing = getPostMortemByJob(db, jobNum);
+    if (existing) return reply.redirect(`/postmortems/${existing.id}`);
+    const id = createPostMortem(db, { jobNum, userId: req.user.id, now: now() });
+    return reply.redirect(`/postmortems/${id}?ok=${encodeURIComponent('Post-mortem started. The numbers were frozen as a snapshot.')}`);
+  });
+
+  // Dismiss without a full review (e.g. data entry error). Still keeps a snapshot and the reason.
+  app.post('/jobs/:jobNum/dismiss', async (req, reply) => {
+    const { jobNum } = req.params;
+    if (!JOB_RE.test(jobNum)) throw notFound('That job');
+    const reason = String(req.body?.reason ?? '').trim();
+    if (!reason) throw new UserError('Please give a reason for dismissing this job.');
+    const id = createPostMortem(db, { jobNum, userId: req.user.id, status: 'dismissed', dismissReason: reason, now: now() });
+    return reply.redirect(`/postmortems/${id}?ok=${encodeURIComponent('Job dismissed.')}`);
+  });
+}

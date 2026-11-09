@@ -162,28 +162,28 @@ const PARTS = [
 // key = job index. Unlisted jobs are "normal" (typical biases and noise).
 // (job index % 4 === 3 is an in-progress job; the others are closed)
 const SCENARIOS = {
-  2: { weldMult: 2.1, note: 'weld blowout' },
-  17: { weldMult: 1.9, note: 'weld blowout' },
-  8: { allMult: 0.55, note: 'big under-run (over-quoted)' },
-  12: { shortQty: 0.8, slow: 1.5, note: 'short run, slow per piece' },
-  13: { priceSpike: 1.35, note: 'steel price spike' },
-  16: { scrapMtl: 1.28, returnMtl: true, note: 'material usage overrun with a return' },
-  22: { unplannedOp: ['ASSY', 6], note: 'unplanned assembly work' },
-  5: { closedOpenOp: true, note: 'job closed with an op never completed' },
-  9: { completeZero: true, note: 'op marked complete with 0 hours' },
-  14: { hoursZeroQty: true, note: 'hours reported but 0 qty' },
-  20: { laborMismatch: 1.5, note: 'LaborDtl does not match JobOper' },
-  33: { laborMismatch: -1.0, note: 'LaborDtl does not match JobOper' },
-  25: { longShift: true, note: 'a 14 hour clock-in' },
+  2: { part: 'FRAME-3100', weldMult: 2.1, note: 'weld blowout' },
+  17: { part: 'ENCL-2200', weldMult: 1.9, note: 'weld blowout' },
+  8: { part: 'ARM-1400', allMult: 0.55, note: 'big under-run (over-quoted)' },
+  12: { part: 'ENCL-2200', shortQty: 0.8, slow: 1.5, note: 'short run, slow per piece' },
+  13: { part: 'FRAME-3100', priceSpike: 1.35, note: 'steel price spike' },
+  16: { part: 'DOOR-7100', scrapMtl: 1.28, returnMtl: true, note: 'material usage overrun with a return' },
+  22: { part: 'GUARD-4010', unplannedOp: ['ASSY', 6], note: 'unplanned assembly work' },
+  5: { part: 'BRKT-1001', closedOpenOp: true, note: 'job closed with an op never completed' },
+  9: { part: 'GUARD-4010', completeZero: true, note: 'op marked complete with 0 hours' },
+  14: { part: 'ARM-1400', hoursZeroQty: true, note: 'hours reported but 0 qty' },
+  20: { part: 'ENCL-2200', laborMismatch: 1.5, note: 'LaborDtl does not match JobOper' },
+  33: { part: 'DOOR-7100', laborMismatch: -1.0, note: 'LaborDtl does not match JobOper' },
+  25: { part: 'ARM-1400', longShift: true, note: 'a 14 hour clock-in' },
   6: { noOrder: true },
   21: { noOrder: true },
   30: { noOrder: true },
   26: { multiOrder: true, note: 'job supplies two order lines' },
   // in-progress jobs
-  43: { open: 'trendingOver', note: '90% of hours used, 40% of qty complete' },
-  47: { open: 'onTrack' },
-  51: { open: 'ahead' },
-  55: { open: 'activeClock', note: 'operator still clocked in' },
+  43: { part: 'XMEMBR-1150', open: 'trendingOver', note: '90% of hours used, 40% of qty complete' },
+  47: { part: 'STAND-9020', open: 'onTrack' },
+  51: { part: 'HOPPER-6200', open: 'ahead' },
+  55: { part: 'BRKT-1001', open: 'activeClock', note: 'operator still clocked in' },
 };
 
 // ------------------------------------------------------------------ generator
@@ -202,7 +202,8 @@ export function generateMockData({ now = new Date(), seed = 20251109, jobCount =
 
   for (let i = 0; i < jobCount; i++) {
     const sc = SCENARIOS[i] ?? {};
-    const part = PARTS[(i * 7 + Math.floor(i / 5)) % PARTS.length];
+    // 5 is coprime with 12, so this walks through every part; the second term shuffles each lap
+    const part = (sc.part && PARTS.find((p) => p.num === sc.part)) || PARTS[(i * 5 + Math.floor(i / PARTS.length) * 3) % PARTS.length];
     const qty = Math.max(1, randInt(part.qty[0], part.qty[1]));
     const open = i % 4 === 3 || !!sc.open;
     const jobNum = String(104000 + i);

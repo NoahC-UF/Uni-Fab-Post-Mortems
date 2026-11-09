@@ -1,0 +1,253 @@
+﻿{% extends "base.njk" %}
+{% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons %}
+{% set r = v.result %}
+{% set j = v.job %}
+{% block title %}Job {{ j.jobNum }}{% endblock %}
+{% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
+
+{% macro opflag(o) %}
+{%- if o.subcontract %}<span class="chip chip-grey" title="Subcontract operations are excluded from labour variance">Subcontract</span>
+{%- elif not o.counts %}<span class="chip chip-grey" title="{{ 'This operation never ran on a closed job, so it is left out' if o.countReason == 'skipped' else 'Open operation: only completed operations count toward the post-mortem. See the Watchlist tab.' }}">{{ 'Skipped' if o.countReason == 'skipped' else 'Open' }}</span>
+{%- elif o.unplanned and o.flag != 'green' %}<span class="chip chip-red" title="Hours were booked but nothing was estimated">Unplanned</span>
+{%- elif o.flag == 'green' and o.belowMinimum %}<span class="chip chip-green" title="Outside the % limit but under the minimum hours/$ to flag">Minor</span>
+{%- else %}{{ flagchip(o.flag) }}{% endif -%}
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Job {{ j.jobNum }} <small class="muted">{{ j.partNum }}</small></h1>
+    <div class="row">
+      {{ flagchip(r.flag, ('Red' if r.flag == 'red' else ('Yellow' if r.flag == 'yellow' else 'Within tolerance'))) }}
+      <span class="chip {{ 'chip-grey' if j.closed else 'chip-blue' }}">{{ 'Closed' if j.closed else 'In progress' }}</span>
+      {% if pm %}<a href="/postmortems/{{ pm.id }}">{{ statuschip(pm.status) }}</a>{% endif %}
+      <span class="muted">{{ j.partDescription }}</span>
+    </div>
+  </div>
+  <div class="row no-print" x-data="{ dismiss: false }">
+    {% if pm %}
+      <a class="btn btn-primary" href="/postmortems/{{ pm.id }}">Open post-mortem</a>
+    {% else %}
+      <form method="post" action="/jobs/{{ j.jobNum }}/postmortem" class="inline">{{ csrfField(csrf) }}<button class="btn btn-primary" type="submit" title="Freezes a snapshot of these numbers">Start post-mortem</button></form>
+      <button class="btn" type="button" @click="dismiss = !dismiss">Dismiss...</button>
+    {% endif %}
+    <a class="btn" href="/jobs/{{ j.jobNum }}/report" target="_blank">Printable report</a>
+    {% if not pm %}
+    <form method="post" action="/jobs/{{ j.jobNum }}/dismiss" class="card" x-show="dismiss" x-cloak style="position:absolute;right:20px;margin-top:46px;z-index:6;width:340px">
+      {{ csrfField(csrf) }}
+      <label>Why is this not worth a review? <small>e.g. data entry error, one-off customer change</small>
+        <input name="reason" required maxlength="300"></label>
+      <div class="row" style="margin-top:8px"><button class="btn btn-danger" type="submit">Dismiss job</button><button class="btn" type="button" @click="dismiss = false">Cancel</button></div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if pm and changes.length %}
+<div class="flash flash-warn">
+  <b>Live data has changed since this post-mortem's snapshot was taken ({{ pm.snapshot_taken_at | dateTime }}).</b>
+  The numbers below are live; the post-mortem keeps the frozen copy.
+  {% for c in changes %}<div>&bull; {{ c.label }}{% if c.unit %}: {{ c.before }} &rarr; {{ c.after }} {{ c.unit }}{% endif %}</div>{% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="kv">
+    <div><span>Customer</span><b>{{ j.custName or '(no sales order)' }}</b></div>
+    <div><span>Order / line</span><b>{{ (j.orderNum ~ ' / ' ~ j.orderLine) if j.orderNum else 'n/a' }}</b></div>
+    <div><span>Part / revision</span><b>{{ j.partNum }} {{ j.revisionNum }}</b></div>
+    <div><span>Qty (made / ordered)</span><b>{{ j.qtyCompleted | qty }} / {{ j.prodQty | qty }}</b></div>
+    <div><span>Start</span><b>{{ j.startDate | dateOnly }}</b></div>
+    <div><span>Due</span><b>{{ j.reqDueDate | dateOnly }}</b></div>
+    <div><span>{{ 'Closed' if j.closed else 'Status' }}</span><b>{{ (j.closedDate | dateOnly) if j.closed else 'In progress' }}</b></div>
+    <div><span>Planner</span><b>{{ j.plannerId or 'n/a' }}</b></div>
+    <div><span>Quote</span><b>{{ (j.quoteNum ~ '-' ~ j.quoteLine) if j.quoteNum else 'n/a' }}</b></div>
+  </div>
+</div>
+
+<div class="tiles">
+  <div class="tile t-blue"><div class="label">Labour (completed ops)</div>
+    <div class="value">{{ varcell(r.totals.labour.varDollars) }}</div>
+    <div class="sub">{{ r.totals.labour.estHours | hrs }} est hrs &rarr; {{ r.totals.labour.actHours | hrs }} actual Â· {{ r.totals.labour.estDollars | money0 }} &rarr; {{ r.totals.labour.actDollars | money0 }}</div></div>
+  <div class="tile t-blue"><div class="label">Material</div>
+    <div class="value">{{ varcell(r.totals.material.varDollars) }}</div>
+    <div class="sub">Usage {{ r.totals.material.usageVar | smoney }} Â· Cost basis {{ r.totals.material.priceVar | smoney }}</div></div>
+  <div class="tile"><div class="label">Net variance</div>
+    <div class="value">{{ varcell(r.totals.netDollars) }}</div>
+    <div class="sub">over {{ r.totals.overDollars | money0 }} Â· under {{ r.totals.underDollars | money0 }} (flagged lines)</div></div>
+  <div class="tile {{ 't-red' if r.flag == 'red' else ('t-yellow' if r.flag == 'yellow' else 't-green') }}"><div class="label">$ impact (ranking)</div>
+    <div class="value">{{ r.totals.impactDollars | money0 }}</div>
+    <div class="sub">{{ r.flaggedLines }} flagged line{{ '' if r.flaggedLines == 1 else 's' }} ({{ r.redLines }} red, {{ r.yellowLines }} yellow)</div></div>
+</div>
+
+{% if not j.closed %}
+<div class="flash flash-info">This job is still in progress. Only <b>completed</b> operations count toward the variance above. Open operations are on the <b>Watchlist</b> tab.</div>
+{% endif %}
+{% if v.jobDq.length %}<div class="flash flash-warn"><b>Check the data:</b> {% for d in v.jobDq %}{{ d }} {% endfor %}</div>{% endif %}
+
+<div class="card">
+  <h2>Estimated vs actual hours by operation</h2>
+  <div class="chart-box"><canvas id="opChart"></canvas></div>
+  <script type="application/json" id="chartData">{{ v.chart | json | safe }}</script>
+</div>
+
+<div x-data="{ tab: 'ops' }">
+  <div class="tabs no-print">
+    <button :class="{ on: tab === 'ops' }" @click="tab = 'ops'">Operations</button>
+    <button :class="{ on: tab === 'mtl' }" @click="tab = 'mtl'">Materials</button>
+    {% if not j.closed %}<button :class="{ on: tab === 'watch' }" @click="tab = 'watch'">Watchlist ({{ r.watch.length }})</button>{% endif %}
+    {% if v.dq.length %}<button :class="{ on: tab === 'dq' }" @click="tab = 'dq'">Data quality ({{ v.dq.length }})</button>{% endif %}
+  </div>
+
+  <!-- ============================================================ OPERATIONS -->
+  <div x-show="tab === 'ops'" class="card">
+    <div class="muted" style="margin-bottom:8px">Variance = actual - estimated. Setup and run are shown separately because they point to different fixes. When the quantity made differs from the run quantity, the flag uses <b>hours per piece</b>. Click <b>Labour</b> on a row to see who clocked what{% if not user.isAdmin %} (names are visible to Admins only){% endif %}.</div>
+    <div class="table-wrap">
+    <table class="t">
+      <thead>
+        <tr>
+          <th>Op</th><th>Resource</th><th>State</th>
+          <th class="num">Setup est</th><th class="num">Setup act</th>
+          <th class="num">Run est</th><th class="num">Run act</th>
+          <th class="num">Total est</th><th class="num">Total act</th>
+          <th class="num">Var hrs</th><th class="num">Var %</th>
+          <th class="num">Hrs/pc est &rarr; act</th><th class="num">$ var</th><th>Flag</th><th></th>
+        </tr>
+      </thead>
+      {% for a in v.assemblies %}
+        {% if v.multiLevel %}
+        <tbody><tr class="sub"><td colspan="15"><b>Assembly {{ a.seq }}</b> &middot; {{ a.part }} <span class="muted">{{ a.desc }}</span></td></tr></tbody>
+        {% endif %}
+        {% for o in a.ops %}
+        <tbody x-data="{ open: false }">
+          <tr class="{{ 'row-excluded' if not o.counts }}">
+            <td class="nowrap"><b>{{ o.oprSeq }}</b> {{ o.opCode }}<br><small>{{ o.opDesc }}</small></td>
+            <td>{{ o.resourceGrpId }}<br><small>{{ o.resourceDesc }}</small></td>
+            <td>{{ 'Complete' if o.opComplete else 'Open' }}{% if o.qty.run %}<br><small>{{ o.qty.completed | qty }} / {{ o.qty.run | qty }} pcs</small>{% endif %}</td>
+            <td class="num">{{ o.est.setup | hrs }}</td><td class="num">{{ o.act.setup | hrs }}</td>
+            <td class="num">{{ o.est.run | hrs }}</td><td class="num">{{ o.act.run | hrs }}</td>
+            <td class="num">{{ o.est.total | hrs }}</td><td class="num"><b>{{ o.act.total | hrs }}</b></td>
+            <td class="num">{{ varcell(o.var.totalHrs, 'hrs') }}{% if o.perPiece.applies %}<br><small class="muted">{{ o.varHours | shrs }} per-pc basis</small>{% endif %}</td>
+            <td class="num">{% if o.counts %}{{ varcell(o.varPct, 'pct') }}{% if o.perPiece.applies %}<br><small class="muted">per piece</small>{% endif %}{% if o.var.setupPct !== null and o.driver %}<br><small class="muted">{{ 'setup' if o.driver == 'setup' else 'run' }} driven</small>{% endif %}{% else %}<span class="muted">-</span>{% endif %}</td>
+            <td class="num">{% if o.perPiece.estHrsPerPc !== null %}{{ o.perPiece.estHrsPerPc | hrs }} &rarr; {{ (o.perPiece.actHrsPerPc | hrs) if o.perPiece.actHrsPerPc !== null else 'n/a' }}{% endif %}</td>
+            <td class="num">{% if o.counts %}{{ varcell(o.varDollars) }}{% else %}<span class="muted">-</span>{% endif %}</td>
+            <td>{{ opflag(o) }} {{ dqicons(o.dq) }} {% if o.direction == 'under' and o.flagged %}{{ dirchip('under') }}{% endif %}</td>
+            <td class="no-print"><button class="btn btn-sm" type="button" @click="open = !open" x-text="open ? 'Hide' : 'Labour ({{ o.labor.length }})'">Labour ({{ o.labor.length }})</button></td>
+          </tr>
+          <tr x-show="open" x-cloak class="sub">
+            <td colspan="15">
+              {% if o.labor.length %}
+              <table class="t">
+                <thead><tr><th>Date</th><th>Type</th><th>In - out</th><th class="num">Hours</th><th class="num">Qty</th><th class="num">Scrap</th><th>Time status</th><th>Operator</th></tr></thead>
+                <tbody>
+                {% for l in o.labor %}
+                  <tr>
+                    <td>{{ l.date | dateOnly }}</td><td>{{ l.type }}</td>
+                    <td>{{ l.clockIn | clockTime }}{% if l.active %} &rarr; <span class="chip chip-yellow">still clocked in</span>{% else %} - {{ l.clockOut | clockTime }}{% endif %}</td>
+                    <td class="num">{{ l.hours | hrs }}{% if l.long %} <span class="dq" title="Longer than 12 hours">&#9888;</span>{% endif %}</td>
+                    <td class="num">{{ l.qty | qty }}</td><td class="num">{{ l.scrap | qty }}{% if l.scrapReason %} <small>({{ l.scrapReason }})</small>{% endif %}</td>
+                    <td>{{ l.status }}</td>
+                    <td>{% if user.isAdmin %}{{ l.employee }}{% if l.shift %} <small class="muted">shift {{ l.shift }}</small>{% endif %}{% else %}<span class="muted">Admin only</span>{% endif %}</td>
+                  </tr>
+                {% endfor %}
+                <tr><td colspan="3"><b>Total labour transactions</b></td><td class="num"><b>{{ o.laborTotal | hrs }}</b></td><td colspan="4" class="muted">vs {{ o.act.total | hrs }} hrs on the operation</td></tr>
+                </tbody>
+              </table>
+              {% else %}<span class="muted">No labour transactions loaded for this operation.</span>{% endif %}
+            </td>
+          </tr>
+        </tbody>
+        {% endfor %}
+      {% endfor %}
+    </table>
+    </div>
+  </div>
+
+  <!-- ============================================================= MATERIALS -->
+  <div x-show="tab === 'mtl'" x-cloak class="card">
+    <div class="muted" style="margin-bottom:8px">Actuals come from material transactions, <b>net of returns to stock</b>. The dollar variance is split into <b>usage</b> (we used more or less) and <b>cost basis</b> (the unit cost differed; with average costing this reflects the running average at issue, not necessarily the purchase price). Lines flag on whichever of quantity or dollars trips the threshold.</div>
+    {% if r.materials.length %}
+    <div class="table-wrap">
+    <table class="t">
+      <thead>
+        <tr>
+          <th>Material</th><th>Class</th>
+          <th class="num">Expected qty</th><th class="num">Actual qty</th><th class="num">Qty var</th>
+          <th class="num">Est $</th><th class="num">Actual $</th><th class="num">$ var</th>
+          <th class="num">Usage $</th><th class="num">Cost basis $</th><th>Flag</th><th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in v.assemblies %}
+        {% if v.multiLevel and a.materials.length %}<tr class="sub"><td colspan="12"><b>Assembly {{ a.seq }}</b> &middot; {{ a.part }}</td></tr>{% endif %}
+        {% for m in a.materials %}
+        <tr>
+          <td><b>{{ m.partNum }}</b><br><small>{{ m.description }}</small></td>
+          <td>{{ m.classId }}</td>
+          <td class="num">{{ m.expectedQty | qty }} {{ m.ium }}{% if m.normalized %}<br><small class="muted" title="Required {{ m.requiredQty }}, scaled to the quantity actually made">scaled</small>{% endif %}</td>
+          <td class="num"><b>{{ m.actualQty | qty }}</b>{% if m.returnedQty %}<br><small class="muted">{{ m.returnedQty | qty }} returned</small>{% endif %}</td>
+          <td class="num">{{ varcell(m.qtyPct, 'pct') }}<br><small class="muted">{{ m.qtyVar | shrs }}</small></td>
+          <td class="num">{{ m.estDollars | money }}</td><td class="num">{{ m.actDollars | money }}</td>
+          <td class="num">{{ varcell(m.dollarVar) }}{% if m.dollarPct !== null %}<br><small class="muted">{{ m.dollarPct | spct }}</small>{% endif %}</td>
+          <td class="num">{{ varcell(m.usageVar) }}</td><td class="num">{{ varcell(m.priceVar) }}</td>
+          <td>
+            {% if m.pending %}<span class="chip chip-grey" title="Still being issued on an in-progress job">Pending</span>
+            {% elif m.unplanned and m.flag != 'green' %}<span class="chip chip-red" title="Issued but not on the job's material list">Unplanned</span>
+            {% elif m.flag == 'green' and m.belowMinimum %}<span class="chip chip-green" title="Outside the % limit but under the minimum $ to flag">Minor</span>
+            {% else %}{{ flagchip(m.flag) }}{% endif %}
+            {% if m.flagged %}{{ dirchip(m.direction) }}{% endif %}
+          </td>
+          <td>
+            {% if m.backflush %}<span class="tag" title="Quantity is system-generated by backflush, not a physical count">backflush</span> {% endif %}
+            {% if m.qtySource == 'jobmtl' %}<span class="tag" title="No transactions found; using JobMtl issued qty">no PartTran</span> {% endif %}
+            {{ dqicons(m.dq) }}
+          </td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="5">Total (excluding pending lines)</td><td class="num">{{ r.totals.material.estDollars | money }}</td><td class="num">{{ r.totals.material.actDollars | money }}</td><td class="num">{{ varcell(r.totals.material.varDollars) }}</td><td class="num">{{ varcell(r.totals.material.usageVar) }}</td><td class="num">{{ varcell(r.totals.material.priceVar) }}</td><td colspan="2"></td></tr>
+      </tfoot>
+    </table>
+    </div>
+    {% else %}<div class="empty">No material lines on this job.</div>{% endif %}
+  </div>
+
+  <!-- ============================================================== WATCHLIST -->
+  {% if not j.closed %}
+  <div x-show="tab === 'watch'" x-cloak class="card">
+    <div class="muted" style="margin-bottom:8px">Open operations: % of estimated hours used vs % of quantity complete, projected to the finish. Example: 90% of the hours used with 40% of the qty done projects to {{ 2.25 | hrs }}x the estimate.</div>
+    {% if r.watch.length %}
+    <table class="t">
+      <thead><tr><th>Op</th><th class="num">Est hrs</th><th class="num">Used hrs</th><th class="num">% hrs used</th><th class="num">% qty done</th><th class="num">Projected hrs</th><th class="num">Projected var</th><th class="num">Projected $</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for w in r.watch %}
+        <tr>
+          <td><b>{{ w.oprSeq }}</b> {{ w.opCode }}</td>
+          <td class="num">{{ w.estHours | hrs }}</td><td class="num">{{ w.actHours | hrs }}</td>
+          <td class="num">{{ (w.pctHoursUsed | pct) if w.pctHoursUsed !== null else 'n/a' }}</td>
+          <td class="num">{{ (w.pctQtyComplete | pct) if w.pctQtyComplete !== null else 'n/a' }}</td>
+          <td class="num">{{ (w.projectedHours | hrs) if w.projectedHours !== null else '' }}</td>
+          <td class="num">{{ varcell(w.projectedPct, 'pct') if w.projectedPct !== null else '' }}</td>
+          <td class="num">{{ varcell(w.projectedDollars) if w.projectedDollars !== null else '' }}</td>
+          <td>{% if w.status == 'trending-over' or w.status == 'over-early' or w.status == 'unplanned' %}{{ flagchip(w.flag, 'Trending over') }}{% else %}<span class="muted">{{ {'on-track': 'On track', 'not-started': 'Not started', 'too-early': 'Too early to tell', 'no-qty-target': 'No quantity target', 'no-estimate': 'No estimate'}[w.status] or w.status }}</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No open operations.</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- =========================================================== DATA QUALITY -->
+  {% if v.dq.length %}
+  <div x-show="tab === 'dq'" x-cloak class="card">
+    <div class="muted" style="margin-bottom:8px">Things that may mean the numbers are wrong (bad clock-ins, missing data) rather than the job actually going badly. Consider dismissing the job if the data cannot be trusted.</div>
+    <table class="t"><thead><tr><th>Where</th><th>Issue</th></tr></thead>
+      <tbody>{% for d in v.dq %}<tr><td>{{ d.where }}</td><td>{{ DQ_LABELS[d.code] or d.code }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/job-detail.js" defer></script>{% endblock %}

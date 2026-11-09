@@ -1,0 +1,30 @@
+{# Coloured flag chip. flag: green|yellow|red. Optional label and tooltip. #}
+{% macro flagchip(flag, label='', title='') %}
+{% if flag == 'red' %}<span class="chip chip-red" title="{{ title }}">{{ label or 'Red' }}</span>
+{% elif flag == 'yellow' %}<span class="chip chip-yellow" title="{{ title }}">{{ label or 'Yellow' }}</span>
+{% elif flag == 'green' %}<span class="chip chip-green" title="{{ title }}">{{ label or 'OK' }}</span>
+{% else %}<span class="chip chip-grey" title="{{ title }}">{{ label or '-' }}</span>{% endif %}
+{% endmacro %}
+
+{% macro statuschip(status) %}
+<span class="chip chip-status-{{ status }}">{{ STATUS_LABELS[status] or status }}</span>
+{% endmacro %}
+
+{% macro dirchip(direction) %}
+{% if direction == 'over' %}<span class="chip chip-over">Over</span>{% elif direction == 'under' %}<span class="chip chip-under">Under</span>{% endif %}
+{% endmacro %}
+
+{# Variance cell: coloured by sign #}
+{% macro varcell(value, kind='money') %}
+{% if value === null or value === undefined %}<span class="muted">n/a</span>
+{% else %}<span class="{{ 'neg-bad' if value > 0 else ('neg-good' if value < 0 else 'muted') }}">
+{%- if kind == 'money' %}{{ value | smoney }}{% elif kind == 'hrs' %}{{ value | shrs }}{% elif kind == 'pct' %}{{ value | spct }}{% else %}{{ value }}{% endif -%}
+</span>{% endif %}
+{% endmacro %}
+
+{# NB: not named "csrf": that name is the page's token variable #}
+{% macro csrfField(token) %}<input type="hidden" name="_csrf" value="{{ token }}">{% endmacro %}
+
+{% macro dqicons(list) %}
+{% if list and list.length %}<span class="dq" title="{% for d in list %}{{ DQ_LABELS[d] or d }}{{ '; ' if not loop.last }}{% endfor %}">&#9888; {{ list.length }}</span>{% endif %}
+{% endmacro %}

@@ -1,0 +1,16 @@
+{% extends "base.njk" %}
+{% block title %}Sign in{% endblock %}
+{% block pageclass %}page-narrow{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h1>Uni-Fab <span class="accent">Post-Mortem</span></h1>
+  <p class="muted">Sign in to review job variances.</p>
+  {% if error %}<div class="flash flash-err">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="stack">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Username <input name="username" value="{{ form.username }}" autocomplete="username" autofocus required></label>
+    <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn btn-primary" type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

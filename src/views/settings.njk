@@ -1,0 +1,154 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import csrfField %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><div class="muted">Admin only. Changes to thresholds, rates and minimums re-check every job straight away.</div></div></div>
+
+<!-- ================================================================ DATA SOURCE -->
+<div class="card" id="sync-card"
+     {% if running %}hx-get="/settings" hx-trigger="every 3s" hx-select="#sync-card" hx-target="#sync-card" hx-swap="outerHTML"{% endif %}>
+  <h2>Epicor connection and sync</h2>
+  <div class="kv" style="margin-bottom:12px">
+    <div><span>Data source</span><b>{% if epicor.mock %}Demo data (USE_MOCK_DATA=true){% else %}Epicor (live BAQs){% endif %}</b></div>
+    <div><span>Last sync</span><b>{% if lastSync %}{{ lastSync.started_at | dateTime }} UTC · {{ lastSync.status }}{% else %}never{% endif %}</b></div>
+    <div><span>Credentials</span><b>{% if epicor.mock %}not used in demo mode{% elif epicor.missing.length %}<span class="neg-bad">missing in .env: {{ epicor.missing | join(', ') }}</span>{% else %}all five .env values are set{% endif %}</b></div>
+  </div>
+  {% if running %}<div class="flash flash-info">A sync is running... this panel refreshes by itself.</div>{% endif %}
+  <div class="row">
+    <form method="post" action="/sync" class="inline">{{ csrfField(csrf) }}<input type="hidden" name="back" value="/settings"><button class="btn btn-primary" type="submit" {{ 'disabled' if running }}>Sync now</button></form>
+    <form method="post" action="/settings/sync-full" class="form-inline">{{ csrfField(csrf) }}
+      <label>Full re-sync from <input type="date" name="from" title="Leave blank to use the sync window below"></label>
+      <button class="btn" type="submit" {{ 'disabled' if running }}>Full re-sync</button></form>
+    <form method="post" action="/settings/test-connection" class="inline">{{ csrfField(csrf) }}<button class="btn" type="submit">Test connection</button></form>
+    {% if epicor.mock %}<form method="post" action="/settings/mock-change" class="inline">{{ csrfField(csrf) }}<button class="btn" type="submit" title="Demo only">Demo: pretend Epicor data changed</button></form>{% endif %}
+  </div>
+  <p class="muted">"Sync now" pulls open jobs plus anything closed since the last sync. "Full re-sync" re-reads everything in the sync window. "Test connection" shows pass or fail only, never your credentials. The app only ever reads from Epicor (GET requests).</p>
+  <p class="muted">BAQs used: {{ epicor.baqs | join(', ') }}</p>
+  {% if syncLog.length %}
+  <h3>Recent syncs</h3>
+  <div class="table-wrap"><table class="t">
+    <thead><tr><th>Started (UTC)</th><th>Kind</th><th>Source</th><th>Status</th><th>Rows</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for l in syncLog %}
+      <tr><td class="nowrap">{{ l.started_at | dateTime }}</td><td>{{ l.kind }}</td><td>{{ l.source }}</td>
+        <td><span class="chip {{ 'chip-green' if l.status == 'ok' else ('chip-red' if l.status == 'error' else 'chip-blue') }}">{{ l.status }}</span></td>
+        <td>{% if l.rows and l.rows.stored %}{{ l.rows.stored.jobs }} jobs, {{ l.rows.stored.operations }} ops, {{ l.rows.stored.labor }} labour, {{ l.rows.stored.materials }} mtl, {{ l.rows.stored.transactions }} trans{% endif %}</td>
+        <td><small>{{ l.error if l.error }}{% if l.rows and l.rows.warnings %}{% for w in l.rows.warnings %}{{ w }}{{ '; ' if not loop.last }}{% endfor %}{% endif %}</small></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% endif %}
+</div>
+
+<!-- ================================================================ THRESHOLDS -->
+<div class="card" id="thresholds">
+  <h2>Thresholds and rules</h2>
+  <form method="post" action="/settings/thresholds" class="stack">
+    {{ csrfField(csrf) }}
+    <div class="filters">
+      <label>Green below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
+      <label>Red above (%) <small>yellow is in between</small><input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
+      <label>Minimum to flag: hours <input type="number" step="0.25" min="0" name="minHours" value="{{ s.minHours }}" required></label>
+      <label>Minimum to flag: dollars <input type="number" step="10" min="0" name="minDollars" value="{{ s.minDollars }}" required></label>
+      <label>Sync window (months) <input type="number" min="1" max="120" name="syncWindowMonths" value="{{ s.syncWindowMonths }}" required></label>
+    </div>
+    <label class="check"><input type="checkbox" name="normalizeMaterialByQty" {{ 'checked' if s.normalizeMaterialByQty }}> Scale expected material to the quantity actually made (closed jobs that ran short or over)</label>
+    <label class="check"><input type="checkbox" name="excludeNonOrderJobs" {{ 'checked' if s.excludeNonOrderJobs }}> Leave out jobs that are not linked to a sales order (stock, maintenance, internal)</label>
+    <div class="muted">A variance is flagged only when it is outside the % limit <b>and</b> at least the minimum hours <i>or</i> the minimum dollars. Both over-runs and under-runs are flagged.</div>
+    <div><button class="btn btn-primary" type="submit">Save and re-check all jobs</button></div>
+  </form>
+
+  <h3 id="overrides" style="margin-top:22px">Overrides by op code or resource group</h3>
+  <div class="muted" style="margin-bottom:8px">Use these when one operation needs a tighter or looser limit (e.g. WELD 10%, ASSY 20%). An op code override wins over a resource group override, which wins over the global limits.</div>
+  {% if overrides.length %}
+  <table class="t" style="max-width:640px"><thead><tr><th>Applies to</th><th>Name</th><th class="num">Green below</th><th class="num">Red above</th><th></th></tr></thead>
+    <tbody>
+    {% for o in overrides %}
+      <tr><td>{{ 'Op code' if o.scope == 'op_code' else 'Resource group' }}</td><td><b>{{ o.scope_value }}</b></td><td class="num">{{ o.greenPct }}%</td><td class="num">{{ o.yellowPct }}%</td>
+        <td><form method="post" action="/settings/overrides/{{ o.id }}/delete" class="inline">{{ csrfField(csrf) }}<button class="btn btn-sm btn-danger" type="submit">Remove</button></form></td></tr>
+    {% endfor %}
+    </tbody></table>
+  {% endif %}
+  <form method="post" action="/settings/overrides" class="form-inline" style="margin-top:10px">
+    {{ csrfField(csrf) }}
+    <label>Applies to <select name="scope"><option value="op_code">Op code</option><option value="resource_group">Resource group</option></select></label>
+    <label>Name <input name="value" list="ovNames" required placeholder="e.g. WELD"><datalist id="ovNames">{% for o in opCodes %}<option value="{{ o }}">{% endfor %}{% for g in groups %}<option value="{{ g.id }}">{% endfor %}</datalist></label>
+    <label>Green below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
+    <label>Red above (%) <input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
+    <button class="btn" type="submit">Add or update override</button>
+  </form>
+</div>
+
+<!-- ================================================================ RATES -->
+<div class="card" id="rates">
+  <h2>Labour and burden rate overrides ($ per hour)</h2>
+  <div class="muted" style="margin-bottom:8px">Rates come from each resource group in Epicor. Type a number to override one; leave it blank to use Epicor's. Dollar impact = hours x (labour + burden).</div>
+  {% if groups.length %}
+  <form method="post" action="/settings/rates">
+    {{ csrfField(csrf) }}
+    <div class="table-wrap"><table class="t">
+      <thead><tr><th>Resource group</th><th class="num">Setup labour</th><th class="num">Setup burden</th><th class="num">Prod labour</th><th class="num">Prod burden</th></tr>
+      <tr><th></th><th colspan="4" class="muted" style="text-transform:none;font-weight:400">Epicor rate shown first; override in the box</th></tr></thead>
+      <tbody>
+      {% for g in groups %}
+        <tr>
+          <td><b>{{ g.id }}</b><br><small>{{ g.description }}</small></td>
+          <td class="num"><small class="muted">Epicor {{ g.setLab | money }}</small><input type="number" step="0.01" min="0" name="setLab__{{ g.id }}" value="{{ g.ov.setup_lab_rate if g.ov and g.ov.setup_lab_rate !== null }}" style="width:110px"></td>
+          <td class="num"><small class="muted">Epicor {{ g.setBur | money }}</small><input type="number" step="0.01" min="0" name="setBur__{{ g.id }}" value="{{ g.ov.setup_bur_rate if g.ov and g.ov.setup_bur_rate !== null }}" style="width:110px"></td>
+          <td class="num"><small class="muted">Epicor {{ g.prodLab | money }}</small><input type="number" step="0.01" min="0" name="prodLab__{{ g.id }}" value="{{ g.ov.prod_lab_rate if g.ov and g.ov.prod_lab_rate !== null }}" style="width:110px"></td>
+          <td class="num"><small class="muted">Epicor {{ g.prodBur | money }}</small><input type="number" step="0.01" min="0" name="prodBur__{{ g.id }}" value="{{ g.ov.prod_bur_rate if g.ov and g.ov.prod_bur_rate !== null }}" style="width:110px"></td>
+        </tr>
+      {% endfor %}
+      </tbody></table></div>
+    <div style="margin-top:10px"><button class="btn btn-primary" type="submit">Save rates and re-check all jobs</button></div>
+  </form>
+  {% else %}<div class="empty">No resource groups yet. Sync some data first.</div>{% endif %}
+</div>
+
+<!-- ================================================================ ROOT CAUSES -->
+<div class="card" id="causes">
+  <h2>Root cause list</h2>
+  <div class="muted" style="margin-bottom:8px">Reviewers pick from this list (several can apply). Untick Active to hide a cause from new reviews; old reviews keep it.</div>
+  <table class="t" style="max-width:640px"><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+    {% for c in causes %}
+      <tr><td colspan="3">
+        <form method="post" action="/settings/causes/{{ c.id }}" class="form-inline" style="flex-wrap:nowrap">{{ csrfField(csrf) }}
+          <input name="name" value="{{ c.name }}" required maxlength="100" style="flex:1;min-width:260px">
+          <label class="check"><input type="checkbox" name="active" {{ 'checked' if c.active }}> Active</label>
+          <button class="btn btn-sm" type="submit">Save</button></form></td></tr>
+    {% endfor %}
+    </tbody></table>
+  <form method="post" action="/settings/causes" class="form-inline" style="margin-top:10px">{{ csrfField(csrf) }}
+    <label>New root cause <input name="name" required maxlength="100"></label><button class="btn" type="submit">Add</button></form>
+</div>
+
+<!-- ================================================================ USERS -->
+<div class="card" id="users">
+  <h2>Users</h2>
+  <div class="muted" style="margin-bottom:8px"><b>Admin</b>: settings, thresholds, users and employee-level data (who clocked what). <b>Reviewer</b>: dashboard, jobs, post-mortems and actions.</div>
+  <div class="table-wrap"><table class="t">
+    <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Active</th><th>Last sign-in</th><th></th><th>Reset password</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><b>{{ u.username }}</b></td>
+        <td><input form="uf{{ u.id }}" name="displayName" value="{{ u.display_name }}" style="min-width:150px"></td>
+        <td><select form="uf{{ u.id }}" name="role" style="width:auto"><option value="admin" {{ 'selected' if u.role == 'admin' }}>Admin</option><option value="reviewer" {{ 'selected' if u.role == 'reviewer' }}>Reviewer</option></select></td>
+        <td><input form="uf{{ u.id }}" type="checkbox" name="active" {{ 'checked' if u.active }}></td>
+        <td class="nowrap">{{ u.last_login_at | dateTime }}</td>
+        <td><button form="uf{{ u.id }}" class="btn btn-sm" type="submit">Save</button></td>
+        <td><form method="post" action="/settings/users/{{ u.id }}/password" class="form-inline" style="flex-wrap:nowrap">{{ csrfField(csrf) }}<input type="password" name="password" placeholder="new password" minlength="8" required autocomplete="new-password" style="width:150px"><button class="btn btn-sm" type="submit">Reset</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% for u in users %}<form method="post" action="/settings/users/{{ u.id }}" id="uf{{ u.id }}" class="hidden">{{ csrfField(csrf) }}</form>{% endfor %}
+  <h3 style="margin-top:16px">Add a user</h3>
+  <form method="post" action="/settings/users" class="form-inline">{{ csrfField(csrf) }}
+    <label>Username <input name="username" required pattern="[A-Za-z0-9._-]{3,40}" autocomplete="off"></label>
+    <label>Name <input name="displayName" required autocomplete="off"></label>
+    <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <label>Role <select name="role"><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select></label>
+    <button class="btn btn-primary" type="submit">Add user</button>
+  </form>
+</div>
+{% endblock %}

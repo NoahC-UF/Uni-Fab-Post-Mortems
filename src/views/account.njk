@@ -1,0 +1,18 @@
+{% extends "base.njk" %}
+{% block title %}Account{% endblock %}
+{% block pageclass %}page-narrow{% endblock %}
+{% block content %}
+<h1>Your account</h1>
+<p class="muted">{{ user.displayName }} · {{ user.username }} · {{ user.role }}</p>
+<div class="card">
+  <h2>Change password</h2>
+  {% if error %}<div class="flash flash-err">{{ error }}</div>{% endif %}
+  <form method="post" action="/account/password" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>New password <small class="muted">at least 8 characters</small><input type="password" name="password" autocomplete="new-password" required minlength="8"></label>
+    <label>Confirm new password <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label>
+    <button class="btn btn-primary" type="submit">Change password</button>
+  </form>
+</div>
+{% endblock %}
