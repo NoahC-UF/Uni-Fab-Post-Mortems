@@ -1,4 +1,4 @@
-﻿{% extends "base.njk" %}
+{% extends "base.njk" %}
 {% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons %}
 {% set r = v.result %}
 {% set j = v.job %}
@@ -68,13 +68,13 @@
 <div class="tiles">
   <div class="tile t-blue"><div class="label">Labour (completed ops)</div>
     <div class="value">{{ varcell(r.totals.labour.varDollars) }}</div>
-    <div class="sub">{{ r.totals.labour.estHours | hrs }} est hrs &rarr; {{ r.totals.labour.actHours | hrs }} actual Â· {{ r.totals.labour.estDollars | money0 }} &rarr; {{ r.totals.labour.actDollars | money0 }}</div></div>
+    <div class="sub">{{ r.totals.labour.estHours | hrs }} est hrs &rarr; {{ r.totals.labour.actHours | hrs }} actual · {{ r.totals.labour.estDollars | money0 }} &rarr; {{ r.totals.labour.actDollars | money0 }}</div></div>
   <div class="tile t-blue"><div class="label">Material</div>
     <div class="value">{{ varcell(r.totals.material.varDollars) }}</div>
-    <div class="sub">Usage {{ r.totals.material.usageVar | smoney }} Â· Cost basis {{ r.totals.material.priceVar | smoney }}</div></div>
+    <div class="sub">Usage {{ r.totals.material.usageVar | smoney }} · Cost basis {{ r.totals.material.priceVar | smoney }}</div></div>
   <div class="tile"><div class="label">Net variance</div>
     <div class="value">{{ varcell(r.totals.netDollars) }}</div>
-    <div class="sub">over {{ r.totals.overDollars | money0 }} Â· under {{ r.totals.underDollars | money0 }} (flagged lines)</div></div>
+    <div class="sub">over {{ r.totals.overDollars | money0 }} · under {{ r.totals.underDollars | money0 }} (flagged lines)</div></div>
   <div class="tile {{ 't-red' if r.flag == 'red' else ('t-yellow' if r.flag == 'yellow' else 't-green') }}"><div class="label">$ impact (ranking)</div>
     <div class="value">{{ r.totals.impactDollars | money0 }}</div>
     <div class="sub">{{ r.flaggedLines }} flagged line{{ '' if r.flaggedLines == 1 else 's' }} ({{ r.redLines }} red, {{ r.yellowLines }} yellow)</div></div>
@@ -128,7 +128,7 @@
             <td class="num">{{ o.est.run | hrs }}</td><td class="num">{{ o.act.run | hrs }}</td>
             <td class="num">{{ o.est.total | hrs }}</td><td class="num"><b>{{ o.act.total | hrs }}</b></td>
             <td class="num">{{ varcell(o.var.totalHrs, 'hrs') }}{% if o.perPiece.applies %}<br><small class="muted">{{ o.varHours | shrs }} per-pc basis</small>{% endif %}</td>
-            <td class="num">{% if o.counts %}{{ varcell(o.varPct, 'pct') }}{% if o.perPiece.applies %}<br><small class="muted">per piece</small>{% endif %}{% if o.var.setupPct !== null and o.driver %}<br><small class="muted">{{ 'setup' if o.driver == 'setup' else 'run' }} driven</small>{% endif %}{% else %}<span class="muted">-</span>{% endif %}</td>
+            <td class="num">{% if o.counts %}{{ varcell(o.varPct, 'pct') }}{% if o.perPiece.applies %}<br><small class="muted">per piece</small>{% endif %}{% if o.driver and o.tier and o.tier != 'green' %}<br><small class="muted">{{ 'setup' if o.driver == 'setup' else 'run' }} driven</small>{% endif %}{% else %}<span class="muted">-</span>{% endif %}</td>
             <td class="num">{% if o.perPiece.estHrsPerPc !== null %}{{ o.perPiece.estHrsPerPc | hrs }} &rarr; {{ (o.perPiece.actHrsPerPc | hrs) if o.perPiece.actHrsPerPc !== null else 'n/a' }}{% endif %}</td>
             <td class="num">{% if o.counts %}{{ varcell(o.varDollars) }}{% else %}<span class="muted">-</span>{% endif %}</td>
             <td>{{ opflag(o) }} {{ dqicons(o.dq) }} {% if o.direction == 'under' and o.flagged %}{{ dirchip('under') }}{% endif %}</td>

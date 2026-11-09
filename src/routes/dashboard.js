@@ -1,4 +1,4 @@
-﻿import { dashboardData, parseFilters } from '../queries.js';
+import { dashboardData, parseFilters } from '../queries.js';
 import { getSettings } from '../settings.js';
 
 const iso = (d) => d.toISOString().slice(0, 10);

@@ -1,4 +1,4 @@
-﻿// Settings (Admin only), plus the "Sync now" button that any signed-in user can press.
+// Settings (Admin only), plus the "Sync now" button that any signed-in user can press.
 
 import { UserError, notFound } from '../errors.js';
 import { getSettings, setSettings } from '../settings.js';

@@ -1,4 +1,4 @@
-﻿import {
+import {
   addAction, addNote, getPostMortem, listPostMortems, setOwner, setReviewDate, setRootCauses, setStatus, snapshotChanges, STEPS,
 } from '../postmortems.js';
 import { retakeSnapshot } from '../postmortems.js';

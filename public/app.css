@@ -185,3 +185,9 @@ table.t tfoot td { font-weight: 700; border-top: 2px solid var(--line); backgrou
 }
 
 [x-cloak] { display: none !important; }
+
+.nav a { white-space: nowrap; }
+@media (max-width: 1100px) { .topbar-inner { flex-wrap: wrap; height: auto; padding: 8px 14px; gap: 6px 16px; } .nav { order: 3; flex-basis: 100%; overflow-x: auto; } .topbar-right { margin-left: auto; } }
+
+.grid-dash { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .grid-dash { grid-template-columns: 1fr; } }

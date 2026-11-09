@@ -1,4 +1,4 @@
-﻿import { getPostMortemByJob, snapshotChanges } from '../postmortems.js';
+import { getPostMortemByJob, snapshotChanges } from '../postmortems.js';
 import { buildJobView } from '../jobView.js';
 import { notFound } from '../errors.js';
 import { getSettings } from '../settings.js';

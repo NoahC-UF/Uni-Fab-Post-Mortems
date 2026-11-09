@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "migrate": "node --env-file-if-exists=.env src/migrate.js",
+    "backup": "node --env-file-if-exists=.env src/backupCli.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-﻿import ExcelJS from 'exceljs';
+import ExcelJS from 'exceljs';
 import { filterOptions, filterQuery, listJobs, parseFilters, topMissLabel } from '../queries.js';
 import { buildJobView } from '../jobView.js';
 import { createPostMortem, getPostMortemByJob, snapshotChanges } from '../postmortems.js';

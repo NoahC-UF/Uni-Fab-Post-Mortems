@@ -1,4 +1,4 @@
-﻿import { deleteAction, listActions, setActionStatus } from '../postmortems.js';
+import { deleteAction, listActions, setActionStatus } from '../postmortems.js';
 import { notFound } from '../errors.js';
 import { activeUsers } from './postmortems.js';
 

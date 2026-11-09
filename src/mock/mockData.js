@@ -39,14 +39,14 @@ export const RESOURCE_GROUPS = {
 
 // set = typical setup hours; biasSet/biasRun = how much actuals tend to differ from estimates
 const OPS = {
-  PRGRMCHK: { desc: 'Program check', rg: 'PGM', set: 0.75, biasSet: 1.15, biasRun: 1.0 },
-  LSRSRT: { desc: 'Laser cut and sort', rg: 'LASER', set: 0.5, biasSet: 0.95, biasRun: 0.92 },
-  FORM: { desc: 'Press brake forming', rg: 'BRAKE', set: 1.0, biasSet: 1.1, biasRun: 1.08 },
-  WELD: { desc: 'Weld', rg: 'WELD1', set: 0.5, biasSet: 1.0, biasRun: 1.22 },
-  ASSY: { desc: 'Assembly', rg: 'ASSY1', set: 0.25, biasSet: 1.1, biasRun: 1.14 },
-  PAINT: { desc: 'Paint', rg: 'PAINT1', set: 0.75, biasSet: 0.97, biasRun: 0.95 },
-  FQLTY: { desc: 'Final quality check', rg: 'QA1', set: 0.25, biasSet: 1.05, biasRun: 1.1 },
-  PACK: { desc: 'Pack and ship', rg: 'PACK1', set: 0.1, biasSet: 0.9, biasRun: 0.85 },
+  PRGRMCHK: { desc: 'Program check', rg: 'PGM', set: 0.75, biasSet: 1.08, biasRun: 1.0 },
+  LSRSRT: { desc: 'Laser cut and sort', rg: 'LASER', set: 0.5, biasSet: 0.97, biasRun: 0.96 },
+  FORM: { desc: 'Press brake forming', rg: 'BRAKE', set: 1.0, biasSet: 1.02, biasRun: 1.03 },
+  WELD: { desc: 'Weld', rg: 'WELD1', set: 0.5, biasSet: 1.0, biasRun: 1.07 },
+  ASSY: { desc: 'Assembly', rg: 'ASSY1', set: 0.25, biasSet: 1.03, biasRun: 1.04 },
+  PAINT: { desc: 'Paint', rg: 'PAINT1', set: 0.75, biasSet: 0.98, biasRun: 0.97 },
+  FQLTY: { desc: 'Final quality check', rg: 'QA1', set: 0.25, biasSet: 1.0, biasRun: 1.04 },
+  PACK: { desc: 'Pack and ship', rg: 'PACK1', set: 0.1, biasSet: 0.95, biasRun: 0.95 },
   OSPLATE: { desc: 'Outside plating (subcontract)', rg: 'OSP', set: 0, biasSet: 1, biasRun: 1, subcontract: true },
 };
 
@@ -251,15 +251,15 @@ export function generateMockData({ now = new Date(), seed = 20251109, jobCount =
     const ops = [];
     for (const o of opRows) {
       const { def } = o;
-      let fSet = lognorm(0.25) * def.biasSet;
-      let fRun = lognorm(0.18) * def.biasRun;
+      let fSet = lognorm(0.15) * def.biasSet;
+      let fRun = lognorm(0.09) * def.biasRun;
       if (sc.weldMult && o.code === 'WELD') fRun *= sc.weldMult;
       if (sc.allMult) {
         fRun *= sc.allMult;
         fSet *= sc.allMult;
       }
       if (sc.slow) fRun *= sc.slow;
-      if (!sc.weldMult && !sc.allMult && rng() < 0.07) fRun *= rand(1.3, 1.7); // the odd bad op
+      if (!sc.weldMult && !sc.allMult && rng() < 0.045) fRun *= rand(1.3, 1.7); // the odd bad op
 
       let complete = true;
       let qtyDone = finalQty;
@@ -398,9 +398,9 @@ export function generateMockData({ now = new Date(), seed = 20251109, jobCount =
       const mtlSeq = (k + 1) * 10;
       const required = round(qtyPer * qty, 2);
       const estUnit = round(unitCost * (open ? 1 : rand(0.97, 1.03)), 4);
-      let usage = cls === 'PLATE' || cls === 'TUBE' ? lognorm(0.06) * 1.03 : 1;
+      let usage = cls === 'PLATE' || cls === 'TUBE' ? lognorm(0.035) * 1.015 : 1;
       if (sc.scrapMtl && cls === 'PLATE') usage = sc.scrapMtl;
-      let priceF = cls === 'PLATE' || cls === 'TUBE' ? lognorm(0.05) * 1.02 : lognorm(0.02);
+      let priceF = cls === 'PLATE' || cls === 'TUBE' ? lognorm(0.03) * 1.01 : lognorm(0.015);
       if (sc.priceSpike && cls === 'PLATE') priceF = sc.priceSpike;
       if (sc.allMult && cls === 'PLATE') usage = 0.7;
       const progress = open ? Math.min(1, Math.max(0.35, (inProgressIdx + 1) / part.route.length + rng() * 0.3)) : 1;
