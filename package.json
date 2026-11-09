@@ -1,0 +1,30 @@
+{
+  "name": "uni-fab-postmortem",
+  "version": "0.1.0",
+  "description": "Job post-mortem tracker for Uni-Fab (reads Epicor Kinetic BAQs, read-only)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "migrate": "node --env-file-if-exists=.env src/migrate.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/formbody": "^9.0.1",
+    "@fastify/static": "^10.1.10",
+    "@fastify/view": "^12.0.1",
+    "alpinejs": "^3.17.5",
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.6.1",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.12.8",
+    "htmx.org": "^2.0.11",
+    "nunjucks": "^3.2.4",
+    "tabulator-tables": "^6.7.1"
+  }
+}
