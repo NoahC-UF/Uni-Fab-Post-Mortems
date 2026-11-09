@@ -1,0 +1,27 @@
+# Secrets - NEVER commit
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Local database and backups (contain shop data and password hashes)
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+backups/
+
+# BAQ exports dropped in for the CSV/Excel import fallback
+import/*
+!import/README.md
+
+# Logs and OS/editor files
+logs/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
