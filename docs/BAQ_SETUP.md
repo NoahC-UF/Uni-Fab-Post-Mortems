@@ -37,7 +37,7 @@ Check each in BAQ Designer when you add the table: double-click the table and lo
 |---|------|-----------|------------|
 | 1 | `JobHead.PersonID` ("planner") | Not sure this field exists on JobHead, or that it means "planner". | If you cannot find it, skip it. If there is a planner/engineer field, tell me its name. |
 | 2 | `JobHead.QuoteNum`, `JobHead.QuoteLine` | Probably exist, but only filled when the job came from a quote. | Include if present. |
-| 3 | `JobProd.AssemblySeq` | Not yet confirmed. The only similar field seen so far is `TargetAssemblySeq`, which means something else. | Use no criteria on JobProd. The app tolerates duplicate rows and keeps the lowest order and line. |
+| 3 | `JobProd.AssemblySeq` | Confirmed absent in your system (checked the JobProd field list). JobProd links the whole job to an order release, so none is needed. `TargetAssemblySeq` means something else. | Use no criteria on JobProd. The app tolerates duplicate rows and keeps the lowest order and line. |
 | 4 | `JobMtl.EstUnitCost` | **Highest risk.** Name may differ, or it may be 0 on jobs not created from a quote. The whole material dollar estimate depends on it. | Check a couple of real jobs. If it is empty, also include `JobMtl.UnitCost` (listed as optional extra) and tell me which holds the estimate. |
 | 5 | `ResourceGroup` rate fields | I expect `SetupLabRate`, `ProdLabRate`, `SetupBurRate`, `ProdBurRate`. These are **current** group rates, not rates frozen when the job ran. | Confirm names. Tell me if JobOper or JobOpDtl also carry rate fields in your system. |
 | 6 | `LaborDtl.TimeStatus` codes | I do not know which letter means Entered, Submitted, Approved, etc. in your release. | Tell me the codes you see in real data (Section 7.1 test). |
