@@ -182,8 +182,8 @@ One row per job (see 2e about multi-order jobs).
 |-------|-------|---------|-----------|-------------|----------------|
 | 1 | `JobHead` | (anchor) | | | `JobReleased = true` |
 | 2 | `JobProd` | JobHead | **Left outer** | `JobHead.Company = JobProd.Company` and `JobHead.JobNum = JobProd.JobNum` | `JobProd.AssemblySeq = 0` (see 1, item 3) |
-| 3 | `OrderHead` | JobProd | **Left outer** | `JobProd.Company = OrderHead.Company` and `JobProd.OrderNum = OrderHead.OrderNum` | none |
-| 4 | `Customer` | OrderHead | **Left outer** | `OrderHead.Company = Customer.Company` and `OrderHead.CustNum = Customer.CustNum` | none |
+| 3 | `OrderHed` | JobProd | **Left outer** | `JobProd.Company = OrderHed.Company` and `JobProd.OrderNum = OrderHed.OrderNum` | none |
+| 4 | `Customer` | OrderHed | **Left outer** | `OrderHed.Company = Customer.Company` and `OrderHed.CustNum = Customer.CustNum` | none |
 
 Why left outer: jobs with no sales order (stock or internal jobs) must still appear. The app excludes
 them by default through a Settings toggle, so you can change your mind later without rebuilding the BAQ.
