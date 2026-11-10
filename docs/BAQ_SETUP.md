@@ -37,7 +37,7 @@ Check each in BAQ Designer when you add the table: double-click the table and lo
 |---|------|-----------|------------|
 | 1 | `JobHead.PersonID` ("planner") | Not sure this field exists on JobHead, or that it means "planner". | If you cannot find it, skip it. If there is a planner/engineer field, tell me its name. |
 | 2 | `JobHead.QuoteNum`, `JobHead.QuoteLine` | Probably exist, but only filled when the job came from a quote. | Include if present. |
-| 3 | `JobProd.AssemblySeq` | Not sure JobProd has this field. I use it to keep one order link per job. | If missing, drop that table criteria. The app tolerates duplicate rows and keeps the lowest order and line. |
+| 3 | `JobProd.AssemblySeq` | Confirmed missing in Kinetic (JobProd has `TargetAssemblySeq`, which means something else). | Use no criteria on JobProd. The app tolerates duplicate rows and keeps the lowest order and line. |
 | 4 | `JobMtl.EstUnitCost` | **Highest risk.** Name may differ, or it may be 0 on jobs not created from a quote. The whole material dollar estimate depends on it. | Check a couple of real jobs. If it is empty, also include `JobMtl.UnitCost` (listed as optional extra) and tell me which holds the estimate. |
 | 5 | `ResourceGroup` rate fields | I expect `SetupLabRate`, `ProdLabRate`, `SetupBurRate`, `ProdBurRate`. These are **current** group rates, not rates frozen when the job ran. | Confirm names. Tell me if JobOper or JobOpDtl also carry rate fields in your system. |
 | 6 | `LaborDtl.TimeStatus` codes | I do not know which letter means Entered, Submitted, Approved, etc. in your release. | Tell me the codes you see in real data (Section 7.1 test). |
@@ -181,9 +181,12 @@ One row per job (see 2e about multi-order jobs).
 | Order | Table | Join to | Join type | Join fields | Table criteria |
 |-------|-------|---------|-----------|-------------|----------------|
 | 1 | `JobHead` | (anchor) | | | `JobReleased = true` |
-| 2 | `JobProd` | JobHead | **Left outer** | `JobHead.Company = JobProd.Company` and `JobHead.JobNum = JobProd.JobNum` | `JobProd.AssemblySeq = 0` (see 1, item 3) |
-| 3 | `OrderHed` | JobProd | **Left outer** | `JobProd.Company = OrderHed.Company` and `JobProd.OrderNum = OrderHed.OrderNum` | none |
-| 4 | `Customer` | OrderHed | **Left outer** | `OrderHed.Company = Customer.Company` and `OrderHed.CustNum = Customer.CustNum` | none |
+| 2 | `JobProd` | JobHead | **Left outer** (Designer: "All rows from JobHead") | `JobHead.Company = JobProd.Company` and `JobHead.JobNum = JobProd.JobNum` | none (`JobProd.AssemblySeq` does not exist in Kinetic; see 1, item 3) |
+| 3 | `OrderHed` | JobProd | **Left outer** (Designer: "All rows from JobProd") | `JobProd.Company = OrderHed.Company` and `JobProd.OrderNum = OrderHed.OrderNum` | none |
+| 4 | `Customer` | OrderHed | **Left outer** (Designer: "All rows from OrderHed") | `OrderHed.Company = Customer.Company` and `OrderHed.CustNum = Customer.CustNum` | none |
+
+In Kinetic's Join Type dropdown, "All rows from X" (X = the table on the left) is the left outer join.
+Do **not** pick "All rows from X and Y" (that is a full outer join and returns every order and customer).
 
 Why left outer: jobs with no sales order (stock or internal jobs) must still appear. The app excludes
 them by default through a Settings toggle, so you can change your mind later without rebuilding the BAQ.
