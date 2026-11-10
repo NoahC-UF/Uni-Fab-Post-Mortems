@@ -31,7 +31,7 @@ const mkClient = (responses, o = {}) => {
 describe('Epicor client is read-only and builds the right request', () => {
   test('only ever uses GET, with API key and basic auth headers', async () => {
     const { client, f } = mkClient([{ status: 200, body: { value: [{ a: 1 }] } }]);
-    await client.fetchAll('UF_PM_JobHeader', { params: { FromDate: '2025-01-01' } });
+    await client.fetchAll('Claude_PostMortem_JobHeader', { params: { FromDate: '2025-01-01' } });
     for (const c of f.calls) assert.equal(c.init.method, 'GET');
     const h = f.calls[0].init.headers;
     assert.equal(h['X-API-Key'], 'KEY-SECRET-1');
@@ -40,9 +40,9 @@ describe('Epicor client is read-only and builds the right request', () => {
 
   test('URL matches the BAQ v2 pattern and carries parameters and OData options', async () => {
     const { client, f } = mkClient([{ status: 200, body: { value: [] } }]);
-    await client.fetchAll('UF_PM_JobHeader', { params: { FromDate: '2025-01-01' }, filter: "JobHead_JobNum eq '1001'", select: 'JobHead_JobNum', orderBy: 'JobHead_JobNum', pageSize: 500 });
+    await client.fetchAll('Claude_PostMortem_JobHeader', { params: { FromDate: '2025-01-01' }, filter: "JobHead_JobNum eq '1001'", select: 'JobHead_JobNum', orderBy: 'JobHead_JobNum', pageSize: 500 });
     const u = new URL(f.calls[0].url);
-    assert.equal(u.pathname, '/SaaS123/api/v2/odata/UF/BaqSvc/UF_PM_JobHeader/Data');
+    assert.equal(u.pathname, '/SaaS123/api/v2/odata/UF/BaqSvc/Claude_PostMortem_JobHeader/Data');
     assert.equal(u.searchParams.get('FromDate'), '2025-01-01');
     assert.equal(u.searchParams.get('$filter'), "JobHead_JobNum eq '1001'");
     assert.equal(u.searchParams.get('$select'), 'JobHead_JobNum');
@@ -121,12 +121,12 @@ describe('credentials never leak', () => {
   });
   test('testConnection returns pass/fail and message only', async () => {
     const { client } = mkClient([{ status: 401, body: 'denied svc_pm' }]);
-    const r = await client.testConnection('UF_PM_JobHeader');
+    const r = await client.testConnection('Claude_PostMortem_JobHeader');
     assert.equal(r.ok, false);
     assert.deepEqual(Object.keys(r).sort(), ['message', 'ok', 'status']);
     assert.ok(!JSON.stringify(r).includes('svc_pm'));
     assert.ok(!JSON.stringify(r).includes('KEY-SECRET-1'));
-    const ok = await mkClient([{ status: 200, body: { value: [] } }]).client.testConnection('UF_PM_JobHeader');
+    const ok = await mkClient([{ status: 200, body: { value: [] } }]).client.testConnection('Claude_PostMortem_JobHeader');
     assert.equal(ok.ok, true);
   });
 });
@@ -134,7 +134,7 @@ describe('credentials never leak', () => {
 describe('field map and mapper', () => {
   test('every BAQ has a key and required columns', () => {
     for (const [key, spec] of Object.entries(BAQ_MAP)) {
-      assert.ok(spec.id.startsWith('UF_PM_'), key);
+      assert.ok(spec.id.startsWith('Claude_PostMortem_'), key);
       const fields = Object.values(spec.columns).map((c) => c[0]);
       for (const k of spec.keys) assert.ok(fields.includes(k), `${key} key ${k} not mapped`);
       assert.ok(Object.values(spec.columns).some((c) => c[2] === 'req'), key);

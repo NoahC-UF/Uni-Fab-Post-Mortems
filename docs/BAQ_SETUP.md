@@ -21,8 +21,8 @@ The app only ever **reads** from Epicor (HTTP GET). It never creates, changes or
 2. [Where I changed your outline, and why](#2-where-i-changed-your-outline-and-why)
 3. [Before you start](#3-before-you-start)
 4. [Common building blocks used by every BAQ](#4-common-building-blocks-used-by-every-baq)
-5. [BAQ 1: UF_PM_JobHeader](#5-baq-1-uf_pm_jobheader)
-6. [BAQ 2: UF_PM_JobOperations](#6-baq-2-uf_pm_joboperations)
+5. [BAQ 1: Claude_PostMortem_JobHeader](#5-baq-1-claude_postmortem_jobheader)
+6. [BAQ 2: Claude_PostMortem_JobOperations](#6-baq-2-claude_postmortem_joboperations)
 7. [BAQ 3, 4, 5: Labor, Materials, Material Transactions](#7-baqs-3-4-5)
 8. [Testing, and what to send me](#8-testing-and-what-to-send-me)
 9. [Optional BAQs (Phase 2 and 3), outline only](#9-optional-baqs-phase-2-and-3-outline-only)
@@ -85,9 +85,9 @@ line and tells you how many it merged. This avoids a complicated subquery for yo
 
 ### 3.1 Naming and settings (every BAQ)
 
-- **Query ID:** exactly as given (`UF_PM_...`). The ID is case-sensitive in the URL the app calls.
+- **Query ID:** exactly as given (`Claude_PostMortem_...`). The ID is case-sensitive in the URL the app calls.
 - **Description:** use the one given.
-- **Updatable / "Updatable Query":** **OFF** (unchecked). Every UF_PM_ BAQ is read-only.
+- **Updatable / "Updatable Query":** **OFF** (unchecked). Every Claude_PostMortem_ BAQ is read-only.
 - **Shared:** **ON** (shared with everyone, not a private query). The API user is not the author, so a
   private query will not be found.
 - **Security:** see 3.2.
@@ -99,7 +99,7 @@ You said a read-only integration user already exists. Checklist:
 
 1. The user can sign in through the API (API Key created in **API Key Maintenance** and tied to the right company).
 2. The user belongs to a **security group** that allows running BAQs. If you use a dedicated group
-   (for example `UF_PM_API`), give it access to the BAQ service and to each UF_PM_ query. In Kinetic
+   (for example `Claude_PostMortem_API`), give it access to the BAQ service and to each Claude_PostMortem_ query. In Kinetic
    this is normally done through **Security Maintenance / Group Maintenance** (menu and business-object
    security) plus the BAQ's sharing settings. The exact screens depend on how your company set up
    security, so ask whoever administers Epicor if the test in 8.1 fails.
@@ -169,11 +169,11 @@ jobs in scope bring detail rows.
 
 ---
 
-## 5. BAQ 1: UF_PM_JobHeader
+## 5. BAQ 1: Claude_PostMortem_JobHeader
 
 One row per job (see 2e about multi-order jobs).
 
-- **Query ID:** `UF_PM_JobHeader`
+- **Query ID:** `Claude_PostMortem_JobHeader`
 - **Description:** `Post-mortem app: one row per released job (open, or closed since @FromDate)`
 
 ### 5.1 Tables and joins
@@ -242,11 +242,11 @@ Updatable OFF, Shared ON, security per 3.2.
 
 ---
 
-## 6. BAQ 2: UF_PM_JobOperations
+## 6. BAQ 2: Claude_PostMortem_JobOperations
 
 One row per job operation.
 
-- **Query ID:** `UF_PM_JobOperations`
+- **Query ID:** `Claude_PostMortem_JobOperations`
 - **Description:** `Post-mortem app: estimated vs actual hours per job operation`
 
 ### 6.1 Tables and joins
@@ -320,11 +320,11 @@ BAQ 1 by `JobNum`.)
 
 ## 7. BAQs 3, 4, 5
 
-### 7.1 BAQ 3: UF_PM_LaborDetail
+### 7.1 BAQ 3: Claude_PostMortem_LaborDetail
 
 One row per labour transaction. **Direct labour only** (indirect is excluded).
 
-- **Query ID:** `UF_PM_LaborDetail`
+- **Query ID:** `Claude_PostMortem_LaborDetail`
 - **Description:** `Post-mortem app: labour transactions per job operation (direct labour only)`
 
 **Tables and joins**
@@ -380,11 +380,11 @@ The inner join to `JobHead` also removes indirect rows (they have no job number)
 3. Tell me the distinct `TimeStatus` values you see, and what each means to you (Section 1, item 6).
 4. Check one row that is still clocked in: `ActiveTrans` should be true and the clock-out empty or 0.
 
-### 7.2 BAQ 4: UF_PM_JobMaterials
+### 7.2 BAQ 4: Claude_PostMortem_JobMaterials
 
 One row per job material line.
 
-- **Query ID:** `UF_PM_JobMaterials`
+- **Query ID:** `Claude_PostMortem_JobMaterials`
 - **Description:** `Post-mortem app: required vs issued material per job material line`
 
 **Tables and joins**
@@ -433,15 +433,15 @@ One row per job material line.
    empty on many lines, tell me. Estimated material dollars will need another source.
 3. `Part_ClassID` and `Part_ProdCode` should be filled for stocked parts.
 
-### 7.3 BAQ 5: UF_PM_MaterialTransactions
+### 7.3 BAQ 5: Claude_PostMortem_MaterialTransactions
 
 One row per material transaction. This is where **actual** material cost comes from (net of returns).
 
-- **Query ID:** `UF_PM_MaterialTransactions`
+- **Query ID:** `Claude_PostMortem_MaterialTransactions`
 - **Description:** `Post-mortem app: material issues and returns per job material line`
 
 **Step 0 (one-time check): which TranTypes exist for jobs?**
-Before building BAQ 5, find the real list. Make a throw-away BAQ `UF_PM_TEMP_TranTypes` (do not
+Before building BAQ 5, find the real list. Make a throw-away BAQ `Claude_PostMortem_TEMP_TranTypes` (do not
 share it, delete it afterwards): table `PartTran`, criteria `PartTran.JobNum` is not empty, display
 `PartTran.TranType` and a **count** of rows (group by TranType) for the last 60 days. Look for every
 type that moves material **to** a job, or **back** from a job. Send me the list. I expect
@@ -543,20 +543,20 @@ Do **not** build these yet. I will write the full step-by-step guide for each wh
 phase, once the first five work. They also use `FromDate`, the same scope block (Section 4.2),
 Updatable OFF and Shared ON. Here is the plan so you know what is coming.
 
-### UF_PM_Subcontract (Phase 2)
+### Claude_PostMortem_Subcontract (Phase 2)
 
 Estimated subcontract cost vs actual PO receipt cost, for operations where `JobOper.SubContract = true`.
 Sources: `JobOper` (estimate), the PO release/detail linked to the job operation (`PORel` and
 `PODetail`), and `PartTran` receipts of type `PUR-SUB`. Left outer joins so unreceived subcontract ops
 still show. I need to confirm in your system how POs link to job operations (the `PORel` job fields).
 
-### UF_PM_NonConformance (Phase 2)
+### Claude_PostMortem_NonConformance (Phase 2)
 
 Scrap and rework tied to a job and operation: `NonConf` (job, assembly, operation, quantity, reason
 code), `DMRHead` and `DMRActn` (disposition, cost). Lets the app say whether an overrun came from
 scrap or rework. Field names vary between releases, so I will check them with you first.
 
-### UF_PM_QuoteVsJob (Phase 3)
+### Claude_PostMortem_QuoteVsJob (Phase 3)
 
 `QuoteOpr` and `QuoteMtl` joined to the job through `JobHead.QuoteNum` / `QuoteLine`, giving
 estimated quote hours and material next to the job's own estimate. This answers "did the quote or

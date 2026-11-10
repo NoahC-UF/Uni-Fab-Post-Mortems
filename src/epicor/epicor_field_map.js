@@ -20,7 +20,7 @@
 
 export const BAQ_MAP = {
   jobHeader: {
-    id: 'UF_PM_JobHeader',
+    id: 'Claude_PostMortem_JobHeader',
     label: 'Job header',
     keys: ['jobNum'],
     columns: {
@@ -51,7 +51,7 @@ export const BAQ_MAP = {
   },
 
   jobOperations: {
-    id: 'UF_PM_JobOperations',
+    id: 'Claude_PostMortem_JobOperations',
     label: 'Job operations',
     keys: ['jobNum', 'assemblySeq', 'oprSeq'],
     columns: {
@@ -86,7 +86,7 @@ export const BAQ_MAP = {
   },
 
   laborDetail: {
-    id: 'UF_PM_LaborDetail',
+    id: 'Claude_PostMortem_LaborDetail',
     label: 'Labour detail',
     keys: ['laborHedSeq', 'laborDtlSeq'],
     columns: {
@@ -120,7 +120,7 @@ export const BAQ_MAP = {
   },
 
   jobMaterials: {
-    id: 'UF_PM_JobMaterials',
+    id: 'Claude_PostMortem_JobMaterials',
     label: 'Job materials',
     keys: ['jobNum', 'assemblySeq', 'mtlSeq'],
     columns: {
@@ -148,7 +148,7 @@ export const BAQ_MAP = {
   },
 
   materialTransactions: {
-    id: 'UF_PM_MaterialTransactions',
+    id: 'Claude_PostMortem_MaterialTransactions',
     label: 'Material transactions',
     keys: ['tranNum'],
     columns: {
