@@ -1,30 +1,36 @@
 {% extends "base.njk" %}
-{% from "_macros.njk" import flagchip, statuschip, varcell %}
+{% from "_macros.njk" import colmenu, presetButtons, dateFields %}
 {% block title %}Dashboard{% endblock %}
-{% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/vendor/tabulator/css/tabulator_simple.min.css">
+<script src="/vendor/chart/chart.umd.min.js" defer></script>
+<script src="/vendor/tabulator/js/tabulator.min.js" defer></script>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     <h1>Dashboard</h1>
     <div class="muted">Closed jobs from {{ f.from }} to {{ f.to }}, plus jobs still in progress.</div>
   </div>
-  <form method="get" action="/" class="form-inline no-print">
-    <label>From <input type="date" name="from" value="{{ f.from }}"></label>
-    <label>To <input type="date" name="to" value="{{ f.to }}"></label>
-    <button class="btn btn-primary" type="submit">Apply</button>
-  </form>
 </div>
-<div class="row no-print" style="margin-bottom:6px">
+{% set dq = ('&dir=' ~ dir) if dir else '' %}
+<div class="row no-print" style="margin-bottom:14px">
   <form method="post" action="/sync" class="inline" title="Pulls open jobs and anything closed since the last sync">
     <input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn btn-sm" type="submit">&#8635; Sync now</button></form>
   <small class="muted">{% if lastSync %}Last sync {{ lastSync.started_at | dateTime }} UTC ({{ lastSync.status }}){% else %}Never synced{% endif %}</small>
-  <span class="muted">|</span>
-  {% for p in presets %}<a class="btn btn-sm {{ 'btn-primary' if p.on }}" href="/?from={{ p.from }}&to={{ p.to }}">{{ p.label }}</a>{% endfor %}
+  <div class="date-tools">
+    {{ presetButtons(presets) }}
+    <span class="muted">|</span>
+    <form method="get" action="/" class="date-range">
+      {% if dir %}<input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+      {{ dateFields(f.from, f.to) }}
+    </form>
+  </div>
 </div>
 
 {% if not hasData %}
 <div class="card">
-  <h2>No job data yet</h2>
+  <h2>No Job Data Yet</h2>
   <p>Nothing has been synced. {% if user.isAdmin %}Go to <a href="/settings">Settings</a> and press <b>Sync now</b>.{% else %}Ask an Admin to run a sync.{% endif %}</p>
 </div>
 {% else %}
@@ -57,37 +63,38 @@
   </div>
 </div>
 
-<div class="grid-dash">
+<div>
   <div class="card">
-    <div class="page-head" style="margin-bottom:6px"><h2>Top 10 biggest $ misses</h2><a href="/jobs?from={{ f.from }}&to={{ f.to }}">All flagged jobs &rarr;</a></div>
-    {% if d.top.length %}
-    <div class="table-wrap">
-    <table class="t">
-      <thead><tr><th>Flag</th><th>Job</th><th>Customer / part</th><th>Biggest miss</th><th class="num">$ impact</th><th class="num">Net</th><th>Review</th></tr></thead>
-      <tbody>
-      {% for r in d.top %}
-        <tr>
-          <td>{{ flagchip(r.flag) }}</td>
-          <td class="nowrap"><a href="/jobs/{{ r.job_num }}">{{ r.job_num }}</a>{% if not r.closed %} <span class="tag">in progress</span>{% endif %}</td>
-          <td>{{ r.cust_name or '(no order)' }}<br><small>{{ r.part_num }}</small></td>
-          <td>{% if r.topMiss %}{{ r.topMiss.op_code or ('Material ' + r.topMiss.part_num) }} {{ varcell(r.topMiss.var_dollars) }}{% endif %}</td>
-          <td class="num"><b>{{ r.impact_dollars | money0 }}</b></td>
-          <td class="num">{{ varcell(r.net_dollars) }}</td>
-          <td>{% if r.pm_id %}<a href="/postmortems/{{ r.pm_id }}">{{ statuschip(r.pm_status) }}</a>{% else %}<a class="btn btn-sm" href="/jobs/{{ r.job_num }}">Review</a>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="page-head" style="margin-bottom:6px">
+      <h2>{% if dir == 'over' %}Top 10 Biggest $ Over-Runs{% elif dir == 'under' %}Top 10 Biggest $ Under-Runs{% else %}Top 10 Biggest $ Misses{% endif %}</h2>
+      <div class="row">
+        <span class="seg no-print" title="Which kind of miss the list shows and ranks by">
+          <small class="muted">Show</small>
+          <a class="btn btn-sm {{ 'btn-primary' if not dir }}" href="/?from={{ f.from }}&to={{ f.to }}">Both</a>
+          <a class="btn btn-sm {{ 'btn-primary' if dir == 'over' }}" href="/?from={{ f.from }}&to={{ f.to }}&dir=over">Over</a>
+          <a class="btn btn-sm {{ 'btn-primary' if dir == 'under' }}" href="/?from={{ f.from }}&to={{ f.to }}&dir=under">Under</a>
+        </span>
+        <a href="/jobs?from={{ f.from }}&to={{ f.to }}{{ ('&direction=' ~ dir) if dir }}">All flagged jobs &rarr;</a>
+      </div>
     </div>
+    {% if d.top.length %}
+    <div class="row no-print" style="margin-bottom:8px">
+      {{ colmenu() }}
+      <span class="muted">Click a column title to sort, or drag it to move the column.</span>
+    </div>
+    <div id="topJobs" data-table="dashboard-top" data-help-scope="grid"></div>
+    <script type="application/json" id="jobRows">{{ topRows | json | safe }}</script>
+    <script type="application/json" id="gridMeta">{{ {'target': targetMarginPct / 100, 'dir': dir, 'marginBands': marginBands} | json | safe }}</script>
+    <script type="application/json" id="colPrefs">{{ savedColumns | json | safe }}</script>
     {% else %}<div class="empty">No flagged jobs in this period.</div>{% endif %}
   </div>
 
   <div class="card">
-    <h2>Where the variance is coming from</h2>
-    <div class="muted" style="margin-bottom:8px">Flagged lines by operation (materials grouped), in dollars.</div>
+    <h2>Where the Variance Is Coming From</h2>
+    <div class="muted" style="margin-bottom:8px">Flagged lines by operation (materials grouped), in dollars. Hover over a bar to see the biggest jobs behind it; click it to review all of them.</div>
     {% if d.byOp.length %}
     <div class="chart-box"><canvas id="byOp"></canvas></div>
-    <script type="application/json" id="byOpData">{{ d.byOp | json | safe }}</script>
+    <script type="application/json" id="byOpData">{{ {'from': f.from, 'to': f.to, 'rows': d.byOp} | json | safe }}</script>
     {% else %}<div class="empty">Nothing flagged in this period.</div>{% endif %}
   </div>
 </div>
@@ -95,4 +102,6 @@
 {% endblock %}
 {% block scripts %}
 <script src="/static/dashboard.js" defer></script>
+<script src="/static/job-columns.js" defer></script>
+<script src="/static/dashboard-top.js" defer></script>
 {% endblock %}

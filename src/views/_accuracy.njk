@@ -1,0 +1,229 @@
+{# Shared pieces of the Quote Accuracy pages. #}
+{% from "_macros.njk" import presetButtons, dateFields %}
+
+{# KPI tile. value and sub may carry a little markup (they are written by the pages, never by users). #}
+{% macro tile(label, value, sub, cls='') %}
+<div class="tile {{ cls }}"><div class="label">{{ label }}</div><div class="value">{{ value | safe }}</div><div class="sub">{{ sub | safe }}</div></div>
+{% endmacro %}
+
+{# Filter bar: the same look as the Flagged Jobs filters. ops = show the grouping choices of page 1. #}
+{# presets = the quick date buttons; org = the tiers and account managers to choose from (null on one customer's page). #}
+{# tops = the choices of the Show box (how many customers each list shows); only the Customers page passes them. #}
+{% macro filterBar(f, action, sorts, bases, ops=false, extraHidden='', presets=[], org=null, orders=[], tops=[]) %}
+<form method="get" action="{{ action }}" class="no-print acc-form">
+  {{ extraHidden | safe }}
+  <input type="hidden" name="lists" value="{{ f.lists }}">
+  {# the same date controls as the Dashboard; Apply here sends every filter below too #}
+  <div class="row acc-datebar"><div class="date-tools">{{ presetButtons(presets) }}<span class="muted">|</span><span class="date-range">{{ dateFields(f.from, f.to) }}</span></div></div>
+  <div class="card acc-filters">
+  <div class="filters">
+    {% if org %}
+    {# Tier: tick one or more tiers (A and B, say); nothing ticked = all tiers #}
+    <div class="multi-field">Tier
+      <div class="multi" x-data='tierPicker({{ org.tierChoices | json | safe }}, {{ (f.tier.split(",") if f.tier else []) | json | safe }})' @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" class="multi-btn" @click="open = !open" :aria-expanded="open" aria-haspopup="true" x-text="text()">{{ 'All Tiers' if not f.tier else f.tier | replace('_none', 'Not on the List') }}</button>
+        <div class="multi-menu" x-show="open" x-cloak>
+          <label class="check"><input type="checkbox" :checked="!sel.length" @click.prevent="sel = []"> All Tiers</label>
+          {% for t in org.tierChoices %}<label class="check"><input type="checkbox" name="tier" value="{{ t.v }}" x-model="sel" {{ 'checked' if f.tier and t.v in f.tier.split(',') }}> {{ t.label }}</label>{% endfor %}
+        </div>
+      </div>
+    </div>
+    <label>Account Manager
+      <select name="mgr">
+        <option value="">All Account Managers</option>
+        {% for m in org.managers %}<option value="{{ m }}" {{ 'selected' if f.mgr == m }}>{{ m }}</option>{% endfor %}
+        <option value="_unassigned" {{ 'selected' if f.mgr == '_unassigned' }}>Unassigned</option>
+        <option value="_none" {{ 'selected' if f.mgr == '_none' }}>Not on the List</option>
+      </select>
+    </label>
+    {% endif %}
+    {% if tops.length %}
+    <label>Show
+      <select name="top" title="How many customers each list shows">{% for n in tops %}<option value="{{ n }}" {{ 'selected' if f.top == n }}>Top {{ n }}</option>{% endfor %}</select>
+    </label>
+    {% endif %}
+    <label>Jobs
+      <select name="status">
+        <option value="closed" {{ 'selected' if f.status == 'closed' }}>Closed only</option>
+        <option value="all" {{ 'selected' if f.status == 'all' }}>Include in-progress</option>
+      </select>
+    </label>
+    <label>Variance Basis
+      <select name="basis">{% for b in bases %}<option value="{{ b.id }}" {{ 'selected' if f.basis == b.id }}>{{ b.label }}</option>{% endfor %}</select>
+    </label>
+    <label>Minimum Jobs <input type="number" name="minJobs" min="1" max="100" step="1" value="{{ f.minJobs }}" title="Groups with fewer jobs than this are left out of the lists"></label>
+    <label>Sort Lists By
+      <select name="sort">{% for s in sorts %}<option value="{{ s.id }}" {{ 'selected' if f.sort == s.id }}>{{ s.label }}</option>{% endfor %}</select>
+    </label>
+    <label>Sort Order
+      <select name="order">{% for o in orders %}<option value="{{ o.id }}" {{ 'selected' if f.order == o.id }}>{{ o.label }}</option>{% endfor %}</select>
+    </label>
+    {% if ops %}
+    <label>Group Operations By
+      <select name="opBy"><option value="op" {{ 'selected' if f.opBy == 'op' }}>Op Code</option><option value="rg" {{ 'selected' if f.opBy == 'rg' }}>Resource Group</option></select>
+    </label>
+    <label>Group Materials By
+      <select name="mtlBy"><option value="part" {{ 'selected' if f.mtlBy == 'part' }}>Part Number</option><option value="class" {{ 'selected' if f.mtlBy == 'class' }}>Material Class</option></select>
+    </label>
+    {% endif %}
+    <label>Trend By
+      <select name="trend"><option value="month" {{ 'selected' if f.trend == 'month' }}>Month</option><option value="quarter" {{ 'selected' if f.trend == 'quarter' }}>Quarter</option></select>
+    </label>
+    <label class="check" title="Leaves out single lines more than 300% off, so one bad clock-in or mis-issued part does not distort the ranking"><input type="hidden" name="outliers" value="0"><input type="checkbox" name="outliers" value="1" {{ 'checked' if f.outliers }}> Exclude Outliers (Over ±300%)</label>
+    <label class="check" title="Jobs that have no customer or no sales order: stock, maintenance, internal"><input type="hidden" name="internal" value="0"><input type="checkbox" name="internal" value="1" {{ 'checked' if f.internal }}> Include Internal / Stock Jobs</label>
+    <div class="filter-actions"><a class="btn" href="{{ action }}">Reset</a><button class="btn btn-primary" type="submit">Apply Filters</button></div>
+  </div>
+  </div>
+</form>
+{% endmacro %}
+
+{# Says so, with a way out, when the Tier or Account Manager filter is on. #}
+{% macro orgNote(f, action, baseNoOrg) %}
+{% if f.tier or f.mgr %}
+<div class="flash flash-info no-print acc-orgnote">Showing only
+  {% if f.tier %}<b>{% for t in f.tier.split(',') %}{{ 'customers not on the customer list' if t == '_none' else ('tier ' ~ t) }}{{ ' or ' if not loop.last }}{% endfor %}</b>{% endif %}{% if f.tier and f.mgr %} and {% endif %}
+  {% if f.mgr %}<b>{{ 'customers not on the customer list' if f.mgr == '_none' else ('customers with no account manager' if f.mgr == '_unassigned' else ('customers looked after by ' ~ f.mgr)) }}</b>{% endif %}.
+  <a href="{{ action }}?{{ baseNoOrg }}">Show all customers</a>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# "x of y jobs" under a percentage #}
+{% macro offcell(g) %}<b>{{ g.pctOff | pct }}</b> <small class="muted">{{ g.jobsOff }} of {{ g.jobs }}</small>{% endmacro %}
+
+{# Attention score cell; marked when the group needs attention #}
+{% macro attncell(g) %}<span class="{{ 'acc-attn' if g.needsAttention }}" title="{{ 'Needs attention: ' if g.needsAttention else '' }}{{ g.grossDollars | money0 }} gross variance x {{ g.pctOff | pct }} of jobs off">{{ g.attention | money0 }}</span>{% endmacro %}
+
+{# Operations table. rows = groups; href = link prefix for a row ('...&drill=op:' is added here). #}
+{% macro opTable(rows, base, selected, label='Operation') %}
+<table data-table="acc-ops" class="t t-fit acc-table" data-help-scope="accuracy">
+  <thead><tr>
+    <th data-help="The operation code, or the resource group if you grouped by that. Click a row to see its setup / run split, trend, part numbers and jobs.">{{ label }}</th>
+    <th class="num">Jobs</th><th class="num">Est Hrs</th><th class="num">Actual Hrs</th><th class="num">Var Hrs</th>
+    <th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th><th class="num">Attention Score</th>
+  </tr></thead>
+  <tbody>
+  {% for g in rows %}
+    <tr class="acc-row {{ 'sel' if selected == ('op:' + g.key) }}" data-href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill">
+      <td><a href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<br><small class="muted">{{ g.description }}</small>{% endif %}</td>
+      <td class="num">{{ g.jobs }}</td><td class="num">{{ g.estHrs | hrs }}</td><td class="num">{{ g.actHrs | hrs }}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.varHrs > 0 else ('neg-good' if g.varHrs < 0 else 'muted') }}">{{ g.varHrs | shrs }}</span></td>
+      <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
+      <td class="num">{{ g.grossDollars | money0 }}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
+      <td class="num">{{ offcell(g) }}</td>
+      <td class="num">{{ attncell(g) }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10" class="muted">Nothing here for these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{# Materials table #}
+{% macro mtlTable(rows, base, selected, label='Material') %}
+<table data-table="acc-mtl" class="t t-fit acc-table" data-help-scope="accuracy">
+  <thead><tr>
+    <th data-help="The material part number, or its class if you grouped by that. Click a row to see its usage / price split, trend, part numbers and jobs.">{{ label }}</th>
+    <th class="num">Jobs</th><th class="num">Exp Qty</th><th class="num">Issued Qty</th><th class="num">Est $</th><th class="num">Act $</th>
+    <th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th><th class="num">Attention Score</th>
+  </tr></thead>
+  <tbody>
+  {% for g in rows %}
+    <tr class="acc-row {{ 'sel' if selected == ('mtl:' + g.key) }}" data-href="/accuracy/ops?{{ base }}&drill=mtl:{{ g.key | urlencode }}#drill">
+      <td><a href="/accuracy/ops?{{ base }}&drill=mtl:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<br><small class="muted">{{ g.description }}</small>{% endif %}</td>
+      <td class="num">{{ g.jobs }}</td><td class="num">{{ g.expQty | qty }}</td><td class="num">{{ g.actQty | qty }}</td>
+      <td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
+      <td class="num">{{ g.grossDollars | money0 }}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
+      <td class="num">{{ offcell(g) }}</td>
+      <td class="num">{{ attncell(g) }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="11" class="muted">Nothing here for these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{# Customers table. link is the page prefix for a customer. #}
+{# One margin figure, coloured against the target margin from Settings: at or above it = good, below zero = losing money. #}
+{# bands = the Margin % Colours from Settings: when there are some, the figure gets the colour of its band instead, by how far it is from its own target. #}
+{% macro marginCell(g, target, bands) %}
+{% set band = (g.marginPct | bandStyle(bands, target)) if g.marginPct !== null and bands else '' %}
+{% if g.marginPct === null %}<span class="muted" title="No closed job here has a sale price">n/a</span>{% elif band %}{% set diff = ((g.marginPct - target) * 100) | round(1) %}<span class="band" style="{{ band }}" title="Planned margin was {{ (g.plannedMarginPct * 100) | round(1) }}%; target {{ (target * 100) | round(1) }}%{{ ' (' ~ g.targetSource ~ ')' if g.targetSource else '' }}; {{ (diff | abs) }} points {{ 'under' if diff < 0 else 'over' }} target">{{ (g.marginPct * 100) | round(1) }}%</span>{% else %}<span class="{{ 'neg-good' if g.marginPct >= target else ('neg-bad' if g.marginPct < 0 else '') }}" title="Planned margin was {{ (g.plannedMarginPct * 100) | round(1) }}%; target {{ (target * 100) | round(1) }}%{{ ' (' ~ g.targetSource ~ ')' if g.targetSource else '' }}">{{ (g.marginPct * 100) | round(1) }}%</span>{% endif %}
+{% endmacro %}
+
+{# A customer's tier level as a small chip, and who looks after the account. Not on the list = a dash; on the list with nobody assigned = "Unassigned". #}
+{% macro tierChip(g) %}{% if g.tier %}<span class="chip {{ 'chip-blue' if g.tier == 'A' else 'chip-grey' }}" title="Tier {{ g.tier }}">{{ g.tier }}</span>{% elif g.listed %}<span class="muted" title="On the customer list with no tier">&mdash;</span>{% else %}<span class="muted" title="Not on the customer list (Settings: Customer Tiers and Account Managers)">&mdash;</span>{% endif %}{% endmacro %}
+{% macro managerText(g) %}{% if g.managers %}{{ g.managers }}{% elif g.listed %}<span class="muted">Unassigned</span>{% else %}<span class="muted" title="Not on the customer list (Settings: Customer Tiers and Account Managers)">&mdash;</span>{% endif %}{% endmacro %}
+
+{% macro custTable(rows, base, target, bands) %}
+{# Column order: who, how many jobs, estimate vs actual, the variance, then what it sold for and the margin, then the split and the "how often wrong" measures. Gross variance, Vs Shop and Attention Score are left out here (they are in the CSV, and Attention Score is still how the lists are ordered by default). #}
+<table data-table="acc-customers" class="t t-fit acc-table" data-help-scope="accuracy">
+  <thead><tr>
+    <th>Customer</th><th>Tier</th>
+    <th data-help="Who looks after this account, from the Customer Organization list in Settings. &quot;Unassigned&quot; = on the list but nobody assigned yet; a dash = not on the list.">Manager</th><th class="num">Jobs</th>
+    <th class="num" data-help="What the jobs were set up to cost: planned labour (with burden) and material, plus the planned cost of the sub-assembly jobs they use and subcontract (counted as planned, since no estimate is kept). The same planned cost as the job page and the margin.">Est $</th><th class="num" data-help="What the jobs really cost: labour with burden, material (inspected purchases at real cost), the sub-assembly jobs they used, subcontract and unestimated work. The same cost the margin uses: Sale $ less Act $ is the margin $. Jobs in progress count only lines compared so far.">Act $</th>
+    <th class="num" data-help="Act $ minus Est $: how far the customer's jobs cost more (+) or less (-) than they were set up to cost, sub-assemblies and subcontract included. Labour $, Material $ and Other $ add up to it.">Net Var $</th><th class="num" data-help="Net Var $ divided by Est $.">Var %</th>
+    <th class="num" data-help="What the customer paid: the sales order lines these jobs were made for (the share each job makes), for CLOSED jobs that have a price. In-progress jobs are left out because their cost is only so far.">Sale $</th><th class="num">Margin $</th><th class="num">Margin %</th><th class="num" data-help="The target margin that applies to this customer: the one set for its tier in Settings, or the default target when its tier has none (or it is not on the customer list). Hover for which. Margin vs Target $ is measured against it.">Target %</th><th class="num" data-help="Margin $ less what the target margin (Settings) would have earned on the same sale price. Red = dollars short of target, green = dollars above it. Weighs size and percentage together, so a tiny customer at a terrible % and a huge one at a slightly low % both show what they really cost.">vs Target $</th>
+    <th class="num" data-help="Labour variance in dollars: hours x (labour + burden rate), the same cost basis as the Dashboard. Positive means over the estimate.">Labour $</th><th class="num" data-help="Material variance in dollars: actual cost less expected cost. Positive means over the estimate.">Material $</th><th class="num" data-help="The part of Net Var $ that is not in the Labour or Material columns: sub-assembly jobs that cost more or less than planned, inspection material at its real cost, and work with no estimate. Labour + Material + Other = Net Var $.">Other $</th>
+    <th class="num" data-help="Share of the group's jobs with at least one line the app flagged: outside the green band and past the minimum hours or dollars set in Settings. (For customers: the share of jobs whose whole-job variance is off.)">% Off</th>
+  </tr></thead>
+  <tbody>
+  {% for g in rows %}
+    <tr class="acc-row" data-href="/accuracy/customers/{{ g.key | urlencode }}?{{ base }}">
+      <td><a href="/accuracy/customers/{{ g.key | urlencode }}?{{ base }}"><b>{{ g.label }}</b></a></td>
+      <td>{{ tierChip(g) }}</td><td class="acc-mgr">{{ managerText(g) }}</td>
+      <td class="num">{{ g.jobs }}</td><td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
+      <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
+      <td class="num">{% if g.pricedJobs %}<span title="{{ g.pricedJobs }} of {{ g.jobs }} jobs are closed with a sale price">{{ g.price | money0 }}</span>{% else %}<span class="muted">n/a</span>{% endif %}</td>
+      <td class="num">{% if g.margin !== null %}<span class="{{ 'neg-good' if g.margin > 0 else ('neg-bad' if g.margin < 0 else 'muted') }}">{{ g.margin | smoney0 }}</span>{% else %}<span class="muted">n/a</span>{% endif %}</td>
+      <td class="num">{{ marginCell(g, g.target, bands) }}</td>
+      <td class="num"><span title="{{ g.targetSource }}">{{ (g.target * 100) | round(1) }}%</span></td>
+      <td class="num">{% if g.vsTarget !== null %}<span class="{{ 'neg-bad' if g.vsTarget < 0 else ('neg-good' if g.vsTarget > 0 else 'muted') }}" title="Margin $ less {{ (g.target * 100) | round(1) }}% of the sale price ({{ g.targetSource }})">{{ g.vsTarget | smoney0 }}</span>{% else %}<span class="muted">n/a</span>{% endif %}</td>
+      <td class="num"><span class="{{ 'neg-bad' if g.labourDollars > 0 else ('neg-good' if g.labourDollars < 0 else 'muted') }}">{{ g.labourDollars | smoney0 }}</span></td>
+      <td class="num"><span class="{{ 'neg-bad' if g.materialDollars > 0 else ('neg-good' if g.materialDollars < 0 else 'muted') }}">{{ g.materialDollars | smoney0 }}</span></td>
+      <td class="num"><span class="{{ 'neg-bad' if g.otherDollars > 0 else ('neg-good' if g.otherDollars < 0 else 'muted') }}">{{ g.otherDollars | smoney0 }}</span></td>
+      <td class="num">{{ offcell(g) }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="17" class="muted">Nothing here for these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{# Which top lists to show: jobs over the estimate (the default), jobs under it, or both (side by side, or stacked so each table gets the full width).
+   links = { over: 'query string', under: ..., h: ..., v: ... } with every other filter kept. #}
+{% macro listPicker(f, path, links, views) %}
+<label class="acc-pick no-print">Show
+  <select onchange="window.location.href=this.value" aria-label="Which lists to show">
+    {% for o in views %}<option value="{{ path }}?{{ links[o.id] }}" {{ 'selected' if f.lists == o.id }}>{{ o.label }}</option>{% endfor %}
+  </select>
+</label>
+{% endmacro %}
+
+{# One list: a heading, its table and a footnote. b = { title, sub, body, foot } #}
+{% macro listBlock(b) %}
+<div><h3>{{ b.title }} <small class="muted">{{ b.sub }}</small></h3>
+  <div class="table-wrap">{{ b.body | safe }}</div>
+  <div class="muted acc-foot">{{ b.foot }}</div></div>
+{% endmacro %}
+
+{# The two top lists, laid out as the person chose. over and under are listBlock dictionaries. #}
+{% macro lists(f, over, under) %}
+{% if f.lists == 'h' %}<div class="grid-2 acc-pair">{{ listBlock(over) }}{{ listBlock(under) }}</div>
+{% elif f.lists == 'v' %}<div class="acc-stack">{{ listBlock(over) }}{{ listBlock(under) }}</div>
+{% elif f.lists == 'under' %}{{ listBlock(under) }}
+{% else %}{{ listBlock(over) }}{% endif %}
+{% endmacro %}
+
+{# Post-mortem chip for a job row: links to the record, or to the job to start one #}
+{% macro pmcell(pm, job) %}
+{% if pm %}<a href="/postmortems/{{ pm.id }}"><span class="chip chip-status-{{ pm.status }}">{{ STATUS_LABELS[pm.status] or pm.status }}</span></a>
+{% else %}<a class="btn btn-sm" href="/jobs/{{ job }}">Review</a>{% endif %}
+{% endmacro %}

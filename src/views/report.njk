@@ -1,5 +1,5 @@
 {% extends "base.njk" %}
-{% from "_macros.njk" import flagchip, statuschip, varcell %}
+{% from "_macros.njk" import flagchip, statuschip, varcell, marginBody %}
 {% set j = snap.job %}
 {% block title %}Report · Job {{ j.jobNum }}{% endblock %}
 {% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
@@ -12,7 +12,8 @@
 <div class="report">
   <div class="report-head">
     <div>
-      <h1>Post-mortem report · Job {{ j.jobNum }}</h1>
+      <img class="report-logo" src="/static/logo.png" alt="Uni-Fab" width="106" height="31">
+      <h1>Post-Mortem Report · Job {{ j.jobNum }}</h1>
       <div>{{ j.partNum }} · {{ j.partDescription }}</div>
       <div class="muted">{{ j.custName or '(no sales order)' }}{% if j.orderNum %} · Order {{ j.orderNum }}{% endif %} · Qty {{ j.qtyCompleted | qty }} of {{ j.prodQty | qty }} · {{ ('Closed ' ~ (j.closedDate | dateOnly)) if j.closed else 'In progress' }}</div>
     </div>
@@ -32,18 +33,35 @@
       <div><span>Material variance</span><b>{{ varcell(snap.totals.material.varDollars) }}</b> <small>(usage {{ snap.totals.material.usageVar | smoney }}, cost basis {{ snap.totals.material.priceVar | smoney }})</small></div>
       <div><span>Net variance</span><b>{{ varcell(snap.totals.netDollars) }}</b></div>
       <div><span>$ impact (flagged lines)</span><b>{{ snap.totals.impactDollars | money0 }}</b> <small>over {{ snap.totals.overDollars | money0 }} / under {{ snap.totals.underDollars | money0 }}</small></div>
+      {% if economics %}
+      <div><span>Sale price ({{ economics.currency }})</span><b>{{ (economics.price | money0) if economics.price else 'n/a' }}</b></div>
+      {% if economics.price %}
+      <div><span>Margin, planned &rarr; {{ 'final' if economics.closed else 'so far' }}</span>
+        <b class="nowrap">{{ economics.margin.plannedPct | pct }} &rarr; <span class="{{ 'neg-bad' if economics.margin.actualPct < economics.target }}">{{ economics.margin.actualPct | pct }}</span></b>
+        <small>(target {{ economics.target | pct }})</small></div>
+      <div><span>Margin ($), planned &rarr; {{ 'final' if economics.closed else 'so far' }}</span><b class="nowrap">{{ economics.margin.planned | money0 }} &rarr; <span class="{{ 'neg-bad' if economics.margin.actual < 0 }}">{{ economics.margin.actual | money0 }}</span></b></div>
+      {% endif %}
+      {% endif %}
     </div>
   </section>
 
+  {% if economics %}
   <section>
-    <h2>Estimated vs actual hours by operation</h2>
+    <h2>Price and Margin ({{ economics.currency }})</h2>
+    {% if economicsLive %}<div class="muted" style="margin-bottom:6px">This post-mortem was started before price and margin were tracked, so these are today's figures, not frozen ones.</div>{% endif %}
+    {{ marginBody(economics) }}
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Estimated vs Actual Hours by Operation</h2>
     <div class="chart-box" style="height:260px"><canvas id="opChart"></canvas></div>
     <script type="application/json" id="chartData">{{ chart | json | safe }}</script>
   </section>
 
   <section>
     <h2>Operations</h2>
-    <table class="t">
+    <table data-table="report" class="t">
       <thead><tr><th>Op</th><th class="num">Est hrs</th><th class="num">Actual hrs</th><th class="num">Setup var</th><th class="num">Run var</th><th class="num">Var %</th><th class="num">$ var</th><th>Flag</th></tr></thead>
       <tbody>
       {% for o in ops %}
@@ -62,8 +80,8 @@
 
   {% if flaggedMaterials.length %}
   <section>
-    <h2>Material lines flagged</h2>
-    <table class="t">
+    <h2>Material Lines Flagged</h2>
+    <table data-table="report" class="t">
       <thead><tr><th>Material</th><th class="num">Expected qty</th><th class="num">Actual qty</th><th class="num">$ var</th><th class="num">Usage $</th><th class="num">Cost basis $</th><th>Flag</th></tr></thead>
       <tbody>
       {% for m in flaggedMaterials %}
@@ -79,14 +97,14 @@
 
   {% if pm %}
   <section>
-    <h2>Root causes</h2>
+    <h2>Root Causes</h2>
     {% if causes.length %}<ul class="list-plain">{% for c in causes %}<li>{{ c }}</li>{% endfor %}</ul>{% else %}<div class="muted">None recorded yet.</div>{% endif %}
     {% if pm.dismiss_reason %}<p><b>Dismissed:</b> {{ pm.dismiss_reason }}</p>{% endif %}
   </section>
   <section>
-    <h2>Action items</h2>
+    <h2>Action Items</h2>
     {% if pm.actions.length %}
-    <table class="t"><thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
+    <table data-table="report" class="t"><thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
       <tbody>{% for a in pm.actions %}<tr><td>{{ a.description }}</td><td>{{ a.owner_name or 'Unassigned' }}</td><td>{{ a.due_date or '' }}</td><td>{{ {'open': 'Open', 'in_progress': 'In progress', 'done': 'Done'}[a.status] }}</td></tr>{% endfor %}</tbody></table>
     {% else %}<div class="muted">No action items yet.</div>{% endif %}
   </section>

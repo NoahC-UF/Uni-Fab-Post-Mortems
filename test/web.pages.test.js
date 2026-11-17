@@ -14,7 +14,7 @@ describe('pages render', () => {
   test('dashboard shows KPI tiles and a top-10 table', async () => {
     const r = await S.admin.get('/?from=2000-01-01&to=2999-01-01');
     ok(r, 'dashboard');
-    for (const t of ['Jobs reviewed', 'Within tolerance', 'Total $ over', 'Total $ under', 'Open post-mortems', 'Top 10 biggest $ misses']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Jobs reviewed', 'Within tolerance', 'Total $ over', 'Total $ under', 'Open post-mortems', 'Top 10 Biggest $ Misses']) assert.ok(r.body.includes(t), t);
     assert.match(r.body, /id="byOpData"/);
   });
 
@@ -89,7 +89,7 @@ describe('pages render', () => {
     const jn = flaggedJobNum();
     const r = await S.admin.get(`/jobs/${jn}`);
     ok(r, 'job detail');
-    for (const t of ['Operations', 'Materials', 'Estimated vs actual hours by operation', 'Setup est', 'Hrs/pc', 'Usage $', 'Cost basis $', 'Start post-mortem']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Operations', 'Materials', 'Estimated vs Actual Hours by Operation', 'Setup est', 'Hrs/pc', 'Usage $', 'Cost basis $', 'Start post-mortem']) assert.ok(r.body.includes(t), t);
     assert.match(r.body, /id="chartData"/);
   });
 
@@ -287,7 +287,7 @@ describe('post-mortem workflow', () => {
   test('printable report uses the snapshot and includes causes and actions', async () => {
     const r = await S.reviewer.get(`/jobs/${jn}/report`);
     ok(r, 'report');
-    for (const t of ['Post-mortem report', 'Root causes', 'Action items', 'Estimated vs actual hours by operation', 'Print / Save as PDF', 'Weld fixture was missing']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Post-Mortem Report', 'Root Causes', 'Action Items', 'Estimated vs Actual Hours by Operation', 'Print / Save as PDF', 'Weld fixture was missing']) assert.ok(r.body.includes(t), t);
   });
 });
 
@@ -382,6 +382,242 @@ describe('settings', () => {
     await S.app.ctx.sync.promise;
     assert.equal(S.db.prepare('SELECT COUNT(*) n FROM sync_log').get().n, before + 1);
     assert.equal(S.db.prepare('SELECT status FROM sync_log ORDER BY id DESC LIMIT 1').get().status, 'ok');
+  });
+
+  test('appearance: dark Uni-Fab Default out of the box; Admin can switch theme and mode for everyone', async () => {
+    const first = await S.admin.get('/');
+    assert.match(first.body, /<html[^>]*data-theme="unifab"[^>]*data-mode="dark"/);
+    assert.match(first.body, /\/static\/logo-white\.png/, 'logo in the top bar');
+
+    assert.equal((await S.reviewer.post('/settings/appearance', { uiTheme: 'original', uiMode: 'light' })).statusCode, 403);
+    assert.equal((await S.admin.post('/settings/appearance', { uiTheme: 'neon', uiMode: 'light' })).statusCode, 400);
+    assert.equal((await S.admin.post('/settings/appearance', { uiTheme: 'original', uiMode: 'sepia' })).statusCode, 400);
+
+    assert.equal((await S.admin.post('/settings/appearance', { uiTheme: 'original', uiMode: 'light' })).statusCode, 302);
+    const changed = await S.reviewer.get('/');
+    assert.match(changed.body, /<html[^>]*data-theme="original"[^>]*data-mode="light"/, 'everyone gets the new default');
+    const page = await S.admin.get('/settings');
+    assert.match(page.body, /Uni-Fab Default/);
+    assert.match(page.body, /value="original" checked/);
+
+    await S.admin.post('/settings/appearance', { uiTheme: 'unifab', uiMode: 'system' });
+    assert.match((await S.admin.get('/')).body, /data-default-mode="system"/);
+    await S.admin.post('/settings/appearance', { uiTheme: 'unifab', uiMode: 'dark' });
+  });
+
+  test('dashboard Top 10 can show both (default), only over-runs, or only under-runs', async () => {
+    const { dashboardData, parseFilters } = await import('../src/queries.js');
+    const now = new Date();
+    const f = parseFilters({ from: '2000-01-01', to: '2100-01-01' }, now, 30);
+    const both = dashboardData(S.db, f, now);
+    const over = dashboardData(S.db, f, now, 'over');
+    const under = dashboardData(S.db, f, now, 'under');
+    assert.ok(both.top.length > 0 && over.top.length > 0 && under.top.length > 0, 'demo data has both kinds');
+    assert.ok(both.top.every((r) => r.shown_dollars === r.impact_dollars), 'both: ranked by total impact');
+    assert.ok(over.top.every((r) => r.over_dollars > 0 && r.shown_dollars === r.over_dollars));
+    assert.ok(under.top.every((r) => r.under_dollars > 0 && r.shown_dollars === r.under_dollars));
+    for (const list of [over.top, under.top]) assert.deepEqual(list.map((r) => r.shown_dollars), list.map((r) => r.shown_dollars).sort((a, b) => b - a), 'biggest first');
+    assert.ok(over.top.every((r) => !r.topMiss || r.topMiss.direction === 'over'), 'biggest miss is an over-run');
+    assert.ok(under.top.every((r) => !r.topMiss || r.topMiss.direction === 'under'), 'biggest miss is an under-run');
+    assert.equal(over.reviewed, both.reviewed, 'tiles are not affected by the Top 10 filter');
+
+    const url = '/?from=2000-01-01&to=2100-01-01';
+    assert.match((await S.reviewer.get(url)).body, /Top 10 Biggest \$ Misses/);
+    assert.match((await S.reviewer.get(`${url}&dir=over`)).body, /Top 10 Biggest \$ Over-Runs/);
+    assert.match((await S.reviewer.get(`${url}&dir=under`)).body, /Top 10 Biggest \$ Under-Runs/);
+    assert.match((await S.reviewer.get(`${url}&dir=bogus`)).body, /Top 10 Biggest \$ Misses/, 'unknown value = both');
+  });
+
+  test('Flagged Jobs: each person can save which columns they see; it is theirs alone and can be reset', async () => {
+    const colPrefs = (body) => JSON.parse(/id="colPrefs">([^<]*)</.exec(body)[1]);
+    const jobsUrl = '/jobs?from=2000-01-01&to=2100-01-01';
+    assert.equal(colPrefs((await S.admin.get(jobsUrl)).body), null, 'standard columns until they save');
+
+    const post = (client, url, body) =>
+      S.app.inject({ method: 'POST', url, headers: { 'content-type': 'application/json', 'x-csrf-token': client.csrf, cookie: client.cookie }, payload: JSON.stringify(body) });
+    assert.equal((await post(S.admin, '/jobs/columns', { columns: ['job', 'customer', 'impact'] })).statusCode, 200);
+    assert.deepEqual(colPrefs((await S.admin.get(jobsUrl)).body).visible, ['job', 'customer', 'impact']);
+    assert.equal(colPrefs((await S.reviewer.get(jobsUrl)).body), null, "someone else's choice is not affected");
+
+    assert.equal((await post(S.admin, '/jobs/columns', { columns: [] })).statusCode, 400, 'at least one column');
+    assert.equal((await post(S.admin, '/jobs/columns', { columns: ['job', 'passwordHash'] })).statusCode, 400, 'only real columns');
+    assert.deepEqual(colPrefs((await S.admin.get(jobsUrl)).body).visible, ['job', 'customer', 'impact'], 'a bad save changes nothing');
+    assert.equal((await S.app.inject({ method: 'POST', url: '/jobs/columns', headers: { 'content-type': 'application/json', cookie: S.admin.cookie }, payload: '{"columns":["job"]}' })).statusCode, 403, 'needs the page token');
+
+    assert.equal((await post(S.admin, '/jobs/columns/reset', {})).statusCode, 200);
+    assert.equal(colPrefs((await S.admin.get(jobsUrl)).body), null);
+  });
+
+  test('printable report includes price and margins; they are frozen with the post-mortem snapshot', async () => {
+    const job = S.db
+      .prepare(
+        `SELECT j.job_num FROM jobs j WHERE j.closed = 1 AND j.order_num IS NOT NULL AND EXISTS (SELECT 1 FROM job_revenue r WHERE r.job_num = j.job_num)
+         AND NOT EXISTS (SELECT 1 FROM post_mortems p WHERE p.job_num = j.job_num) LIMIT 1`,
+      )
+      .get().job_num;
+    // before a post-mortem exists the report uses live numbers and already shows the margins
+    const live = (await S.reviewer.get(`/jobs/${job}/report`)).body;
+    for (const t of ['Price and Margin (CAD)', 'Sale price (CAD)', 'Margin, planned', 'Planned (Job Set-Up)', 'Actual (Final)', 'Total cost', 'Margin (%)']) assert.ok(live.includes(t), t);
+
+    await S.reviewer.post(`/jobs/${job}/postmortem`);
+    const price = (html) => /Sale price \(CAD\)<\/span><b>([^<]+)</.exec(html)[1];
+    const frozen = price((await S.reviewer.get(`/jobs/${job}/report`)).body);
+
+    S.db.prepare('UPDATE job_revenue SET ext_price = ext_price * 2 WHERE job_num = ?').run(job); // the price changes in Epicor afterwards
+    const after = (await S.reviewer.get(`/jobs/${job}/report`)).body;
+    assert.equal(price(after), frozen, 'the report keeps the price from the snapshot');
+    assert.ok(!after.includes('started before price and margin were tracked'));
+
+    // a post-mortem from before this feature has no frozen figures: today's are shown, and it says so
+    const row = S.db.prepare('SELECT id, snapshot_json FROM post_mortems WHERE job_num = ?').get(job);
+    const snap = JSON.parse(row.snapshot_json);
+    delete snap.economics;
+    S.db.prepare('UPDATE post_mortems SET snapshot_json = ? WHERE id = ?').run(JSON.stringify(snap), row.id);
+    const legacy = (await S.reviewer.get(`/jobs/${job}/report`)).body;
+    assert.ok(legacy.includes('started before price and margin were tracked'));
+    assert.notEqual(price(legacy), frozen, "and they are today's figures");
+
+    // a job with no sales order: price n/a, no margin lines, and it says why
+    const bare = S.db.prepare('SELECT job_num FROM jobs WHERE order_num IS NULL AND closed = 1 LIMIT 1').get()?.job_num ?? S.db.prepare('SELECT job_num FROM jobs WHERE order_num IS NULL LIMIT 1').get().job_num;
+    const none = (await S.reviewer.get(`/jobs/${bare}/report`)).body;
+    assert.ok(none.includes('Sale price (CAD)') && none.includes('n/a'));
+    assert.ok(!none.includes('Margin, planned') && !none.includes('Margin (%)'));
+    assert.ok(none.includes('No sale price is available'));
+  });
+
+  test('Flagged Jobs: margin columns, the likely-cause filter, and the Excel export', async () => {
+    const url = '/jobs?from=2000-01-01&to=2100-01-01&flag=all';
+    const rowsOf = (html) => {
+      const m = /id="jobRows">([^<]*)</.exec(html); // no rows = the page shows "No jobs match" instead of the grid
+      return m ? JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')) : [];
+    };
+    const all = rowsOf((await S.reviewer.get(url)).body);
+    assert.ok(all.some((r) => r.price > 0 && r.actualMarginPct !== null), 'priced jobs carry their margins');
+    // (jobs with no sales order are left out of this list by the default setting, so none show here)
+
+    for (const [cause, label] of [['price-vs-plan', 'Price / Set-Up'], ['overrun', 'Overrun'], ['ok', 'On Target'], ['no-price', 'No Price']]) {
+      const rows = rowsOf((await S.reviewer.get(`${url}&cause=${cause}`)).body);
+      assert.ok(rows.every((r) => r.cause === cause && r.causeLabel === label), cause);
+    }
+    const below = rowsOf((await S.reviewer.get(`${url}&cause=below`)).body);
+    assert.ok(below.length > 0 && below.every((r) => ['price-vs-plan', 'overrun'].includes(r.cause)));
+    assert.equal(rowsOf((await S.reviewer.get(`${url}&cause=bogus`)).body).length, all.length, 'unknown value = no filter');
+
+    const page = (await S.reviewer.get(url)).body;
+    assert.ok(page.includes('Likely Cause (Margin)') && page.includes('id="gridMeta"'));
+    const js = (await S.reviewer.get('/static/job-columns.js')).body;
+    for (const t of ['Sale Price', 'Planned Margin', 'Actual Margin', 'Likely Cause']) assert.ok(js.includes(t), t);
+    assert.equal((await S.reviewer.post('/jobs/columns', {})).statusCode, 400, 'sanity: form posts are not column saves');
+
+    const ExcelJS = (await import('exceljs')).default;
+    const res = await S.reviewer.get(`/jobs/export.xlsx?from=2000-01-01&to=2100-01-01&flag=all`);
+    assert.equal(res.statusCode, 200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const ws = wb.getWorksheet('Flagged jobs');
+    const headers = ws.getRow(1).values.filter(Boolean);
+    for (const h of ['Sale price (CAD)', 'Planned cost', 'Actual cost', 'Planned margin $', 'Actual margin $', 'Planned margin %', 'Actual margin %', 'Likely cause']) assert.ok(headers.includes(h), h);
+    const col = (name) => ws.getRow(1).values.findIndex((v) => v === name);
+    const priced = [...Array(ws.rowCount - 1).keys()].map((i) => ws.getRow(i + 2)).find((r) => typeof r.getCell(col('Sale price (CAD)')).value === 'number');
+    assert.ok(priced, 'a priced job has a number in the price column');
+    assert.ok(['Price / Set-Up', 'Overrun', 'On Target'].includes(priced.getCell(col('Likely cause')).value));
+  });
+
+  test('job page shows the Price and Margin card; the target margin is a setting', async () => {
+    const withOrder = S.db.prepare('SELECT job_num FROM jobs WHERE closed = 1 AND order_num IS NOT NULL LIMIT 1').get().job_num;
+    const page = (await S.reviewer.get(`/jobs/${withOrder}`)).body;
+    for (const t of ['Price and Margin (CAD)', 'Sale price', 'Planned (Job Set-Up)', 'Actual (Final)', 'Total cost', 'Margin (%)', 'Target margin 20.0%', 'How the price was built']) assert.ok(page.includes(t), t);
+    const noOrder = S.db.prepare('SELECT job_num FROM jobs WHERE order_num IS NULL LIMIT 1').get().job_num;
+    const bare = (await S.reviewer.get(`/jobs/${noOrder}`)).body;
+    assert.ok(bare.includes('No sale price is available'), 'a job with no order says so');
+    assert.ok(!bare.includes('Margin (%)'), 'and shows no margin rows');
+    const open = S.db.prepare('SELECT job_num FROM jobs WHERE closed = 0 AND order_num IS NOT NULL LIMIT 1').get().job_num;
+    assert.ok((await S.reviewer.get(`/jobs/${open}`)).body.includes('Actual (So Far)'));
+
+    const form = { greenPct: 10, yellowPct: 25, minHours: 2, minDollars: 250, syncWindowMonths: 12, normalizeMaterialByQty: 'on', excludeNonOrderJobs: 'on' };
+    assert.equal((await S.admin.post('/settings/thresholds', { ...form, targetMarginPct: '150' })).statusCode, 400);
+    assert.equal((await S.admin.post('/settings/thresholds', { ...form, targetMarginPct: '30' })).statusCode, 302);
+    assert.ok((await S.reviewer.get(`/jobs/${withOrder}`)).body.includes('Target margin 30.0%'));
+    assert.equal((await S.admin.post('/settings/thresholds', { ...form, targetMarginPct: '20' })).statusCode, 302);
+  });
+
+  test('Op Code and Resource Group filters: "Flagged" is ticked by default; unticked finds any job that has the operation', async () => {
+    const rowsOf = (html) => {
+      const m = /id="jobRows">([^<]*)</.exec(html);
+      return m ? JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')).map((r) => r.job) : [];
+    };
+    const base = '/jobs?from=2000-01-01&to=2100-01-01&flag=all';
+    // an operation that exists on a job but was NOT flagged there
+    const pick = S.db
+      .prepare(
+        `SELECT o.job_num, o.op_code, o.resource_grp_id FROM job_operations o JOIN jobs j ON j.job_num = o.job_num
+         WHERE j.closed = 1 AND j.order_num IS NOT NULL AND o.resource_grp_id <> ''
+           AND NOT EXISTS (SELECT 1 FROM flag_lines f WHERE f.job_num = o.job_num AND f.op_code = o.op_code)
+           AND NOT EXISTS (SELECT 1 FROM flag_lines f WHERE f.job_num = o.job_num AND f.resource_grp_id = o.resource_grp_id) LIMIT 1`,
+      )
+      .get();
+    assert.ok(pick, 'demo data has an operation that was not flagged');
+    const op = encodeURIComponent(pick.op_code);
+    const rg = encodeURIComponent(pick.resource_grp_id);
+
+    // default (nothing said) and explicitly ticked (the form sends 0 then 1): flagged only, so this job is not there
+    assert.ok(!rowsOf((await S.reviewer.get(base + '&op=' + op)).body).includes(pick.job_num));
+    assert.ok(!rowsOf((await S.reviewer.get(base + '&op=' + op + '&opFlagged=0&opFlagged=1')).body).includes(pick.job_num));
+    // unticked (the form sends just 0): any job with that operation
+    const any = rowsOf((await S.reviewer.get(base + '&op=' + op + '&opFlagged=0')).body);
+    assert.ok(any.includes(pick.job_num), 'unticked finds the job where the operation was not flagged');
+    const flaggedOnly = rowsOf((await S.reviewer.get(base + '&op=' + op)).body);
+    assert.ok(any.length > flaggedOnly.length && flaggedOnly.every((j) => any.includes(j)), 'unticked is a superset of ticked');
+
+    // same for resource group, independently
+    assert.ok(!rowsOf((await S.reviewer.get(base + '&rg=' + rg)).body).includes(pick.job_num));
+    assert.ok(rowsOf((await S.reviewer.get(base + '&rg=' + rg + '&rgFlagged=0')).body).includes(pick.job_num));
+    assert.ok(!rowsOf((await S.reviewer.get(base + '&op=' + op + '&opFlagged=0&rg=' + rg)).body).includes(pick.job_num), 'the two ticks are independent');
+    assert.ok(rowsOf((await S.reviewer.get(base + '&op=' + op + '&opFlagged=0&rg=' + rg + '&rgFlagged=0')).body).includes(pick.job_num));
+
+    // the page shows two ticked boxes, and remembers an unticked one
+    const page = (await S.reviewer.get(base)).body;
+    assert.equal((page.match(/name="(op|rg)Flagged" value="1" checked/g) ?? []).length, 2);
+    const off = (await S.reviewer.get(base + '&opFlagged=0')).body;
+    assert.equal((off.match(/name="(op|rg)Flagged" value="1" checked/g) ?? []).length, 1);
+    // the Excel export and Job Study follow the same filter
+    const study = await S.reviewer.get('/study?from=2000-01-01&to=2100-01-01&flag=all&op=' + op + '&opFlagged=0');
+    assert.equal(study.statusCode, 200);
+    assert.ok(study.body.includes('/jobs/' + pick.job_num));
+    assert.match((await S.reviewer.get(base + '&op=' + op + '&opFlagged=0')).body, /opFlagged=false/, 'the export and study links carry the choice');
+  });
+
+  test('Flagged Jobs: filter buttons read Reset then Apply, and filter labels are in Title Case', async () => {
+    const body = (await S.admin.get('/jobs?from=2000-01-01&to=2100-01-01')).body;
+    assert.ok(body.indexOf('>Reset<') < body.indexOf('>Apply filters<'), 'Reset comes first, Apply to its right');
+    for (const t of ['Closed From', 'Job Status', 'Over / Under', 'Op Code', 'Resource Group', 'Min $ Impact', 'Post-Mortem']) assert.ok(body.includes(t), t);
+    const js = await S.admin.get('/static/job-columns.js');
+    assert.match(js.body, /flag-dot/, 'the flag column is a dot');
+    assert.match(js.body, /'Biggest Miss'/);
+  });
+
+  test('a person can pick their own light / dark mode on the Account page; the logo and stylesheet are served', async () => {
+    const acct = await S.reviewer.get('/account');
+    assert.match(acct.body, /Appearance/);
+    assert.match(acct.body, /Use the shop default/);
+    const login = await S.anon.get('/login');
+    assert.match(login.body, /\/static\/logo\.png/);
+    assert.match(login.body, /\/static\/logo-white\.png/);
+    for (const f of ['logo.png', 'logo-white.png', 'app.css']) assert.equal((await S.anon.get(`/static/${f}`)).statusCode, 200, f);
+  });
+
+  test('automatic sync settings: Admin only, validated, saved, and shown on the page', async () => {
+    const form = { autoSyncEnabled: 'on', autoSyncTime: '03:15', autoSyncWeeklyFull: 'on' };
+    assert.equal((await S.reviewer.post('/settings/auto-sync', form)).statusCode, 403);
+    assert.equal((await S.admin.post('/settings/auto-sync', { ...form, autoSyncTime: '25:00' })).statusCode, 400);
+    assert.equal((await S.admin.post('/settings/auto-sync', form)).statusCode, 302);
+    const s = Object.fromEntries(S.db.prepare("SELECT key, value FROM settings WHERE key LIKE 'autoSync%'").all().map((r) => [r.key, JSON.parse(r.value)]));
+    assert.deepEqual(s, { autoSyncEnabled: true, autoSyncTime: '03:15', autoSyncWeeklyFull: true });
+    const page = await S.admin.get('/settings');
+    assert.match(page.body, /Automatic Sync/);
+    assert.match(page.body, /value="03:15"/);
+    await S.admin.post('/settings/auto-sync', { autoSyncTime: '03:15' }); // boxes unticked = off
+    assert.equal(JSON.parse(S.db.prepare("SELECT value FROM settings WHERE key = 'autoSyncEnabled'").get().value), false);
   });
 
   test('full re-sync is Admin only', async () => {

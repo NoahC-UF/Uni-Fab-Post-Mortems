@@ -195,7 +195,7 @@ export function generateMockData({ now = new Date(), seed = 20251109, jobCount =
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
   const lognorm = (sigma) => Math.exp(sigma * gauss() - (sigma * sigma) / 2);
 
-  const data = { jobs: [], ops: [], labor: [], mtls: [], trans: [], resourceGroups: RESOURCE_GROUPS };
+  const data = { jobs: [], ops: [], labor: [], mtls: [], trans: [], revenue: [], resourceGroups: RESOURCE_GROUPS };
   let tranNum = 700000;
   let laborHed = 500000;
   let laborDtl = 1;
@@ -463,6 +463,30 @@ export function generateMockData({ now = new Date(), seed = 20251109, jobCount =
       scopeDate: closedDate ? iso(closedDate) : '9999-12-31',
       _extraOrder: sc.multiOrder ? { orderNum: orderBase + 1, orderLine: 2 } : null,
     });
+
+    // ---- sale price (no random numbers used here, so the rest of the demo data is unchanged).
+    // Price is set from the job's PLANNED cost: most jobs were quoted with a healthy margin,
+    // but every 7th (starting at 2) was quoted thin, so the demo shows "the price was the problem".
+    if (!sc.noOrder) {
+      const plannedCost =
+        ops.reduce((t, o) => t + o.estSetHours * (o.setLabRate + o.setBurRate) + o.estProdHours * (o.prodLabRate + o.prodBurRate), 0) +
+        data.mtls.filter((m) => m.jobNum === jobNum).reduce((t, m) => t + m.requiredQty * m.estUnitCost, 0);
+      const plannedMargin = i % 7 === 2 ? 0.05 : 0.22 + ((i * 37) % 25) / 100;
+      const price = plannedCost / (1 - plannedMargin);
+      const usd = custName.includes('USA');
+      const links = sc.multiOrder
+        ? [{ orderNum: orderBase, orderLine: 1, qty: Math.max(1, Math.round(qty * 0.6)) }, { orderNum: orderBase + 1, orderLine: 2, qty: Math.max(1, qty - Math.max(1, Math.round(qty * 0.6))) }]
+        : [{ orderNum: orderBase, orderLine: 1, qty }];
+      const total = links.reduce((t, l) => t + l.qty, 0);
+      for (const l of links) {
+        const ext = round((price * l.qty) / total, 2);
+        data.revenue.push({
+          company: 'UF', jobNum, orderNum: l.orderNum, orderLine: l.orderLine, orderRelNum: 1, allocQty: l.qty, orderQty: l.qty,
+          extPrice: ext, docExtPrice: usd ? round(ext / 1.37, 2) : ext, currencyCode: usd ? 'USD' : 'CAD',
+          scopeDate: closedDate ? iso(closedDate) : '9999-12-31',
+        });
+      }
+    }
   }
   return data;
 }

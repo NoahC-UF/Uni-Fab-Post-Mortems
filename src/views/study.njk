@@ -1,0 +1,212 @@
+{% extends "base.njk" %}
+{% from "_macros.njk" import varcell %}
+{% block title %}Job Study{% endblock %}
+{% block head %}<script src="/vendor/chart/chart.umd.min.js" defer></script>{% endblock %}
+{% block content %}
+{% set t = study.totals %}
+{% set st = study.stats %}
+<div class="page-head">
+  <div>
+    <h1>Job Study</h1>
+    <div class="muted">
+      {{ t.jobs }} job{{ '' if t.jobs == 1 else 's' }} studied together
+      {% if source == 'selected' %}(the jobs you ticked){% else %}(every job the Flagged Jobs filters matched){% endif %}.
+      Expected hours are scaled to the quantity each operation made, exactly as on the job pages. All money is {{ 'CAD' }}.
+    </div>
+  </div>
+  <div class="row no-print">
+    <a class="btn" href="/jobs">&larr; Back to Flagged Jobs</a>
+    <button class="btn" type="button" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn" href="/study/export.xlsx{{ '?' + exportQuery if exportQuery }}">&#8681; Export Study to Excel</a>
+  </div>
+</div>
+
+<div class="row no-print width-bar" style="margin-bottom:10px">
+  <span class="muted">Drag the right edge of a column title to change its width.</span>
+  <button class="btn btn-sm btn-primary" type="button" id="wSave" title="Remember these widths for you, on any computer">Save Column Widths</button>
+  <button class="btn btn-sm" type="button" id="wReset" title="Go back to the standard widths">Reset Column Widths</button>
+  <small class="muted" id="wMsg" role="status"></small>
+</div>
+<script type="application/json" id="savedWidths">{{ savedWidths | json | safe }}</script>
+
+{% if study.truncated %}<div class="flash flash-warn">{{ study.total }} jobs matched. Only the first {{ max }} are studied here; narrow the filters to study the rest.</div>{% endif %}
+{% if study.missing.length %}<div class="flash flash-warn">Not found, so left out: {{ study.missing | join(', ') }}.</div>{% endif %}
+
+<!-- ============================================================ summary -->
+<div class="card">
+  <h2>Summary</h2>
+  <p style="margin:0 0 10px;font-size:1.02rem">{{ study.summary.headline }}</p>
+  {% if study.summary.teams.length %}
+  <div class="teams">
+    {% for tm in study.summary.teams %}<div class="team"><b>{{ tm.team }}</b><span>{{ tm.text }}</span></div>{% endfor %}
+  </div>
+  {% endif %}
+  <p class="muted" style="margin:10px 0 0;font-size:.85rem">
+    Margins use closed jobs that have a sale price ({{ st.n }} of {{ t.jobs }}{% if t.openJobs %}; {{ t.openJobs }} still open{% endif %}). Jobs without a price are left out of the margin figures but kept in the hour comparisons.
+    Freight and overhead are not in the data, so real margins may be lower. Estimating and Job Release cannot be told apart for certain without the hours that were quoted; here they are separated by whether the price was below goal at set-up, and whether the operations that overran also overrun on most other jobs.
+  </p>
+</div>
+
+{% if st.n %}
+<div class="card">
+  <h2>Margin Summary ({{ st.n }} Priced Jobs)</h2>
+  <div class="table-wrap"><table data-table="study-summary" data-resize class="t t-fit">
+    <thead><tr><th>Measure</th><th class="num">Planned</th><th class="num">Actual</th><th class="num" data-help="Planned and actual margin against the goal margin, in percentage points: above (+) or below (-) it.">vs {{ st.target | pct }} Goal (Planned &rarr; Actual)</th></tr></thead>
+    <tbody>
+      {% for row in [['Average margin (simple)', st.average], ['Median margin', st.median], ['Revenue-weighted margin', st.weighted]] %}
+      <tr><td>{{ row[0] }}</td>
+        <td class="num">{{ row[1].planned | pct }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if row[1].actual < st.target }}">{{ row[1].actual | pct }}</span></td>
+        <td class="num">{{ ((row[1].planned - st.target) * 100) | round(1) | spts }} &rarr; <span class="{{ 'neg-bad' if row[1].actual < st.target }}">{{ ((row[1].actual - st.target) * 100) | round(1) | spts }}</span></td></tr>
+      {% endfor %}
+      <tr><td>Margin dollars</td><td class="num">{{ st.dollars.planned | money0 }}</td><td class="num">{{ st.dollars.actual | money0 }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if st.dollars.shortfall < 0 }}">{{ st.dollars.shortfall | smoney0 }}</span> <small class="muted">vs plan</small></td></tr>
+      <tr><td>Margin dollars vs the goal margin</td><td class="num">{{ st.vsGoalDollars.planned | smoney0 }}</td><td class="num"><span class="{{ 'neg-bad' if st.vsGoalDollars.actual < 0 }}">{{ st.vsGoalDollars.actual | smoney0 }}</span></td><td class="num"></td></tr>
+      <tr><td>Labour hours</td><td class="num">{{ st.hours.planned | hrs }}</td><td class="num">{{ st.hours.actual | hrs }}</td>
+        <td class="num">{{ st.hours.extra | shrs }} hrs{% if st.hours.multiple %} ({{ st.hours.multiple }}&times;){% endif %}</td></tr>
+      <tr><td>Labour cost / material cost vs plan</td><td class="num"></td><td class="num"></td>
+        <td class="num">{{ varcell(st.labourDiff) }} / {{ varcell(st.materialDiff) }}</td></tr>
+    </tbody></table></div>
+</div>
+
+<div class="card">
+  <h2>Planned vs Actual Margin by Job</h2>
+  <div class="muted" style="margin-bottom:8px">Closed priced jobs in close-date order. The dashed line is {% if st.targetsDiffer %}each job's own goal, set by its customer's tier ({{ st.target | pct }} on average){% else %}the {{ st.target | pct }} goal{% endif %}. A gap between the two lines is margin lost between set-up and finish; a planned point under the line was priced short from the start.</div>
+  <div class="chart-box" style="height:300px"><canvas id="marginChart"></canvas></div>
+  <script type="application/json" id="marginChartData">{{ study.chart | json | safe }}</script>
+</div>
+{% endif %}
+
+<div class="tiles">
+  <div class="tile t-blue"><div class="label">Jobs Studied</div><div class="value">{{ t.jobs }}</div>
+    <div class="sub">{{ st.n }} closed with a sale price · {{ t.belowTarget }} below goal</div></div>
+  <div class="tile"><div class="label">Total Sale Price (CAD)</div><div class="value">{{ t.price | money0 }}</div>
+    <div class="sub">closed priced jobs</div></div>
+  <div class="tile"><div class="label">Labour Variance</div><div class="value">{{ varcell(t.labourVar) }}</div><div class="sub">actual minus expected, all jobs</div></div>
+  <div class="tile"><div class="label">Material Variance</div><div class="value">{{ varcell(t.materialVar) }}</div><div class="sub">actual minus expected, all jobs</div></div>
+</div>
+
+<!-- ============================================================ where to look -->
+<div class="card">
+  <h2>Where to Look, Job by Job</h2>
+  <div class="muted" style="margin-bottom:8px">Jobs whose price fell furthest short of their real cost come first. <b>Price Needed</b> is the price that would have earned the job's own goal{% if not st.targetsDiffer %} ({{ st.target | pct }}){% endif %} at the cost the job really had.
+    <b>Estimating</b> = priced below goal before the shop started. <b>Job Release + Shop</b> = healthy plan, then the job booked about twice its planned hours or more across several operations (or on operations that overrun on most jobs), which points at planned hours set too low. <b>Shop</b> = a narrower overrun on one or two operations. <b>Check Data</b> = the quantities disagree (see below).</div>
+  <div class="table-wrap"><table data-table="study-jobs" data-resize class="t t-fit">
+    <thead><tr><th>Job</th><th>Customer / Part</th><th class="num">Sale Price</th><th class="num">Planned Margin</th><th class="num">Actual Margin</th><th class="num">Hours (Actual / Planned)</th><th class="num">Price Needed for Goal</th><th>Where to Look</th></tr></thead>
+    <tbody>
+    {% for j in study.ranked %}
+      <tr><td class="nowrap"><a href="/jobs/{{ j.jobNum }}">{{ j.jobNum }}</a>{% if not j.closed %} <span class="tag">in progress</span>{% endif %}</td>
+        <td><div class="clip" title="{{ j.customer }}">{{ j.customer or '(no order)' }}</div><div class="clip"><small>{{ j.part }}</small></div></td>
+        <td class="num">{{ (j.price | money0) if j.price !== null else '' }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if j.plannedMarginPct !== null and j.plannedMarginPct < j.target }}" title="Goal {{ (j.target * 100) | round(1) }}%{{ ' (tier ' ~ j.tier ~ ')' if j.tier else '' }}">{{ (j.plannedMarginPct | pct) if j.plannedMarginPct !== null else '' }}</span></td>
+        <td class="num"><span class="{{ 'neg-bad' if j.actualMarginPct !== null and j.actualMarginPct < j.target }}" title="Goal {{ (j.target * 100) | round(1) }}%{{ ' (tier ' ~ j.tier ~ ')' if j.tier else '' }}">{{ (j.actualMarginPct | pct) if j.actualMarginPct !== null else '' }}</span></td>
+        <td class="num">{% if j.hoursMultiple !== null %}<span class="{{ 'neg-bad' if j.hoursMultiple > 1.25 }}">{{ j.hoursMultiple }}&times;</span>{% endif %}</td>
+        <td class="num">{% if j.priceNeeded !== null %}{{ j.priceNeeded | money0 }} <small class="muted">({{ j.priceGapPct | spct }})</small>{% elif j.closed and j.price !== null %}<span class="muted">met</span>{% endif %}</td>
+        <td><b>{{ j.focusLabel }}</b>{% if j.focusDetail %}<div class="clip" style="max-width:320px"><small class="muted" title="{{ j.focusDetail }}">{{ j.focusDetail }}</small></div>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  <div class="row" style="margin-top:8px;gap:16px">
+    {% for code, label in {'estimating': 'Estimating', 'release-shop': 'Job Release + Shop', 'shop': 'Shop', 'met': 'Met Target', 'data': 'Check Data', 'no-price': 'No Price', 'open': 'Still Open'} %}
+      {% if study.focusCounts[code] %}<span><b>{{ study.focusCounts[code] }}</b> <span class="muted">{{ label }}</span></span>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ============================================================ by operation -->
+<div class="card">
+  <h2>By Operation: Where Are the Estimates Off?</h2>
+  <div class="muted" style="margin-bottom:8px">Completed operations only, each job counted once per operation. <b>Typical job</b> is the middle job's variance %, so one bad job cannot hide a steady pattern. <b>Share of overrun</b> is the operation's dollars as a share of the net operation overrun. Biggest dollar impact first.</div>
+  {% if study.operations.length %}
+  <div class="table-wrap"><table data-table="study-ops" data-resize class="t t-fit">
+    <thead><tr><th>Operation</th><th class="num">Jobs</th><th class="num">Expected Hrs</th><th class="num">Actual Hrs</th><th class="num">Variance Hrs</th><th class="num">Hours (Actual / Expected)</th><th class="num">Variance %</th>
+      <th class="num">Typical Job</th><th class="num">Over on</th><th class="num">$ Variance</th><th class="num">Share of Overrun</th><th>Pattern</th></tr></thead>
+    <tbody>
+    {% for o in study.operations %}
+      <tr><td><b>{{ o.opCode }}</b></td><td class="num">{{ o.jobs }}</td><td class="num">{{ o.expectedHours | hrs }}</td><td class="num">{{ o.actualHours | hrs }}</td>
+        <td class="num">{{ varcell(o.varHours, 'hrs') }}</td><td class="num">{% if o.hoursMultiple !== null %}<span class="{{ 'neg-bad' if o.hoursMultiple > 1.1 }}">{{ o.hoursMultiple }}&times;</span>{% endif %}</td>
+        <td class="num">{{ varcell(o.varPct, 'pct') }}</td><td class="num">{{ varcell(o.medianVarPct, 'pct') }}</td>
+        <td class="num">{{ o.jobsOver }} of {{ o.jobs }} jobs</td><td class="num">{{ varcell(o.varDollars) }}</td>
+        <td class="num">{{ (o.shareOfNet | pct) if o.shareOfNet !== null and o.shareOfNet > 0 else '' }}</td>
+        <td>{% if o.pattern.startsWith('Usually') %}<b>{{ o.pattern }}</b>{% else %}<span class="muted">{{ o.pattern }}</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}<div class="empty">No completed operations in these jobs.</div>{% endif %}
+</div>
+
+{% if study.matrix.rows.length %}
+<div class="card">
+  <div class="page-head" style="margin-bottom:6px">
+    <h2>Operation by Job Heat Map</h2>
+    <label class="form-inline no-print" style="display:flex;flex-direction:row;align-items:center;gap:8px">Show
+      <select id="hmMode" style="width:auto" title="What the numbers in the squares show">
+        <option value="hrs" selected>Hours (actual minus expected)</option>
+        <option value="pct">% of expected hours</option>
+        <option value="usd">Dollars (labour variance)</option>
+      </select></label>
+  </div>
+  <div class="muted" style="margin-bottom:8px"><span id="hmWhat">Hours: actual minus expected hours.</span> <span class="hm-key hm-over">red</span> = over, <span class="hm-key hm-under">blue</span> = under; stronger colour = bigger miss.
+    A row that is the same colour across many jobs is a steady estimating problem; a single dark cell is a one-off.
+    {% if study.matrix.truncatedJobs %} Showing the first {{ study.matrix.jobs | length }} jobs.{% endif %}</div>
+  <div class="table-wrap"><table data-table="study-heatmap" data-resize class="t heatmap" id="heatmap">
+    <thead><tr><th>Operation</th>{% for j in study.matrix.jobs %}<th class="num hm-head"><a href="/jobs/{{ j }}" title="Open job {{ j }}">{{ j }}</a></th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in study.matrix.rows %}
+      <tr><td><b>{{ r.opCode }}</b></td>
+      {% for c in r.cells %}
+        {% if c %}
+        <td class="num hm-cell" data-pct="{{ c.pct if c.pct !== null }}" data-hrs="{{ c.hrs }}" data-usd="{{ c.usd }}"
+            data-sh-pct="{{ c.shade }}" data-sh-hrs="{{ c.shadeHrs }}" data-sh-usd="{{ c.shadeUsd }}" data-d-pct="{{ c.dirPct }}" data-d-hrs="{{ c.dir }}" data-d-usd="{{ c.dirUsd }}"
+            style="background: color-mix(in srgb, {{ 'var(--red)' if c.dir == 'over' else 'var(--blue)' }} {{ c.shadeHrs }}%, transparent)"
+            title="{{ r.opCode }} on job {{ study.matrix.jobs[loop.index0] }}: expected {{ c.expected | hrs }} hrs, actual {{ c.actual | hrs }} hrs ({{ c.hrs | shrs }} hrs{% if c.pct !== null %}, {{ c.pct | spct }}{% endif %}, {{ c.usd | smoney0 }})">{{ '+' if c.hrs > 0 }}{{ (c.hrs | round(0)) if (c.hrs | abs) >= 100 else (c.hrs | round(1)) }}</td>
+        {% else %}<td class="hm-cell"></td>{% endif %}
+      {% endfor %}</tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+{% if study.repeatParts.length %}
+<div class="card">
+  <h2>Repeat Parts</h2>
+  <div class="muted" style="margin-bottom:8px">The same part made on more than one of these jobs. A part that loses money every run needs its routing and price reset before it is quoted again.</div>
+  <div class="table-wrap"><table data-table="study-parts" data-resize class="t t-fit">
+    <thead><tr><th>Part</th><th>Jobs</th><th class="num">Sale Price</th><th class="num">Planned Margin $</th><th class="num">Actual Margin $</th><th class="num">Below Plan By</th><th class="num">Actual Margin</th><th class="num">Hours (Actual / Planned)</th><th></th></tr></thead>
+    <tbody>
+    {% for p in study.repeatParts %}
+      <tr><td><b>{{ p.part }}</b></td><td>{% for jn in p.jobs %}<a href="/jobs/{{ jn }}">{{ jn }}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
+        <td class="num">{{ p.price | money0 }}</td><td class="num">{{ p.plannedMargin | money0 }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if p.actualMargin < 0 }}">{{ p.actualMargin | money0 }}</span></td>
+        <td class="num">{{ varcell(p.belowPlan) }}</td><td class="num">{{ (p.actualMarginPct | pct) if p.actualMarginPct !== null else '' }}</td>
+        <td class="num">{{ (p.hoursMultiple ~ '×') if p.hoursMultiple !== null else '' }}</td>
+        <td>{% if p.lostEveryRun %}<span class="chip chip-red">Lost money every run</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+<!-- ============================================================ materials, data -->
+<div class="card">
+  <h2>By Material: Biggest Dollar Differences</h2>
+  {% if study.materials.length %}
+  <div class="table-wrap"><table data-table="study-mtl" data-resize class="t t-fit">
+    <thead><tr><th>Part</th><th class="num">Jobs</th><th class="num">Expected Qty</th><th class="num">Actual Qty</th><th class="num">Expected $</th><th class="num">Actual $</th><th class="num">$ Variance</th><th class="num">Variance %</th><th class="num">Usage $</th><th class="num">Cost Basis $</th></tr></thead>
+    <tbody>
+    {% for m in study.materials | batch(15) | first %}
+      <tr><td><b>{{ m.partNum }}</b> <small class="muted clip" style="display:inline-block;max-width:260px;vertical-align:bottom">{{ m.description }}</small></td><td class="num">{{ m.jobs }}</td>
+        <td class="num">{{ m.expectedQty | qty }}</td><td class="num">{{ m.actualQty | qty }}</td><td class="num">{{ m.estDollars | money0 }}</td><td class="num">{{ m.actDollars | money0 }}</td>
+        <td class="num">{{ varcell(m.varDollars) }}</td><td class="num">{{ varcell(m.varPct, 'pct') }}</td><td class="num">{{ varcell(m.usageVar) }}</td><td class="num">{{ varcell(m.priceVar) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% if study.materials.length > 15 %}<div class="muted" style="margin-top:6px">Top 15 of {{ study.materials.length }} parts. The Excel export has them all.</div>{% endif %}
+  {% else %}<div class="empty">No material lines in these jobs.</div>{% endif %}
+</div>
+
+{% if study.qtyNotes.length %}
+<div class="card">
+  <h2>Check the Data: Quantities That Disagree</h2>
+  <div class="muted" style="margin-bottom:8px">On these jobs the quantity the job says it made does not match what most operations made. A wrong quantity can create false under-runs or over-runs, so check these before trusting their numbers.</div>
+  <ul class="list-plain">{% for n in study.qtyNotes %}<li><a href="/jobs/{{ n.jobNum }}"><b>{{ n.jobNum }}</b></a>: {{ n.text }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/study.js" defer></script><script src="/static/table-widths.js" defer></script>{% endblock %}

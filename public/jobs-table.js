@@ -1,27 +1,49 @@
 // Flagged Jobs grid (Tabulator). Rows are embedded in the page as JSON; filters above the grid are server-side.
+// The columns and the Columns menu are shared with the Dashboard's Top 10: public/job-columns.js.
 window.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('jobsTable');
   const dataEl = document.getElementById('jobRows');
-  if (!el || !dataEl || !window.Tabulator) return;
+  if (!el || !dataEl || !window.Tabulator || !window.UFJobColumns) return;
   const rows = JSON.parse(dataEl.textContent);
+  // A person's saved columns ({ visible, order }), or null = the standard set.
+  const saved = (() => {
+    try {
+      const v = JSON.parse(document.getElementById('colPrefs')?.textContent || 'null');
+      return v && typeof v === 'object' ? v : null;
+    } catch {
+      return null;
+    }
+  })();
 
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const rank = { red: 3, yellow: 2, green: 1 };
-  const fmt0 = new Intl.NumberFormat('en-CA', { maximumFractionDigits: 0 });
-  const money0 = (v) => (v === null || v === undefined ? '' : (v < 0 ? '-$' : '$') + fmt0.format(Math.abs(v)));
-  const smoney0 = (v) => (v === null || v === undefined ? '' : v === 0 ? '$0' : (v > 0 ? '+$' : '-$') + fmt0.format(Math.abs(v)));
-  const cls = (v) => (v > 0 ? 'neg-bad' : v < 0 ? 'neg-good' : 'muted');
+  const meta = (() => {
+    try {
+      return JSON.parse(document.getElementById('gridMeta')?.textContent || '{}') || {};
+    } catch {
+      return {};
+    }
+  })();
+  const target = Number(meta.target) || 0;
 
-  const chip = (flag) => {
-    const label = { red: 'Red', yellow: 'Yellow', green: 'OK' }[flag] || flag;
-    return `<span class="chip chip-${flag}">${label}</span>`;
+  const defs = UFJobColumns.create(target, { bands: meta.marginBands, minColWidth: UFJobColumns.minColWidth(el) });
+
+  // Header of the tick-box column: Tabulator's own select-all box, with the words "Select All" under it
+  // (the words are part of the label, so clicking them ticks the box too).
+  const selectAllTitle = (cell, params, onRendered) => {
+    const box = Tabulator.moduleBindings.format.formatters.rowSelection.call(cell.getTable().modules.format, cell, params, onRendered);
+    const label = document.createElement('label');
+    label.className = 'select-all';
+    label.append(box, 'Select All');
+    return label;
   };
-  const statusLabel = { flagged: 'Flagged', under_review: 'Under Review', root_cause_found: 'Root Cause Found', actions_assigned: 'Actions Assigned', closed: 'Closed', dismissed: 'Dismissed' };
 
-  const signed = (cell) => {
-    const v = cell.getValue();
-    return v === null || v === undefined ? '' : `<span class="${cls(v)}">${smoney0(v)}</span>`;
-  };
+  // Opened from a bar of the Dashboard chart: always show the Matching Lines $ column (next to $ Impact) and rank by it.
+  let columns = UFJobColumns.columnsFor(defs, saved);
+  if (meta.lineFilter) {
+    const at = columns.findIndex((c) => c.field === 'impact');
+    const mine = columns.find((c) => c.field === 'lineDollars');
+    columns = columns.filter((c) => c.field !== 'lineDollars');
+    columns.splice(at < 0 ? columns.length : at, 0, { ...mine, visible: true });
+  }
 
   const table = new Tabulator(el, {
     data: rows,
@@ -29,40 +51,30 @@ window.addEventListener('DOMContentLoaded', () => {
     pagination: true,
     paginationSize: 50,
     paginationSizeSelector: [25, 50, 100, 250],
-    initialSort: [{ column: 'impact', dir: 'desc' }],
+    initialSort: [{ column: meta.lineFilter ? 'lineDollars' : 'impact', dir: 'desc' }],
     placeholder: 'No jobs match.',
-    columns: [
-      { title: 'Flag', field: 'flag', width: 90, formatter: (c) => chip(c.getValue()), sorter: (a, b) => (rank[a] || 0) - (rank[b] || 0), headerFilter: 'list', headerFilterParams: { values: { red: 'Red', yellow: 'Yellow', green: 'OK' }, clearable: true }, headerFilterFunc: (v, rv) => !v || v === rv },
-      { title: 'Job', field: 'job', width: 100, formatter: (c) => `<a href="/jobs/${encodeURIComponent(c.getValue())}">${esc(c.getValue())}</a>`, headerFilter: 'input' },
-      { title: 'Part', field: 'part', width: 130, headerFilter: 'input', formatter: (c) => `<span title="${esc(c.getRow().getData().partDesc)}">${esc(c.getValue())}</span>` },
-      { title: 'Customer', field: 'customer', minWidth: 150, headerFilter: 'input', formatter: (c) => (c.getValue() ? esc(c.getValue()) : '<span class="muted">(no order)</span>') },
-      { title: 'Status', field: 'state', width: 110, headerFilter: 'list', headerFilterParams: { values: { Closed: 'Closed', 'In progress': 'In progress' }, clearable: true } },
-      { title: 'Closed', field: 'closedDate', width: 105 },
-      { title: '$ impact', field: 'impact', hozAlign: 'right', sorter: 'number', width: 105, formatter: (c) => `<b>${money0(c.getValue())}</b>` },
-      { title: '$ over', field: 'over', hozAlign: 'right', sorter: 'number', width: 95, formatter: (c) => (c.getValue() ? `<span class="neg-bad">${money0(c.getValue())}</span>` : '') },
-      { title: '$ under', field: 'under', hozAlign: 'right', sorter: 'number', width: 95, formatter: (c) => (c.getValue() ? `<span class="neg-good">${money0(c.getValue())}</span>` : '') },
-      { title: 'Net', field: 'net', hozAlign: 'right', sorter: 'number', width: 95, formatter: signed },
-      { title: 'Labour $', field: 'labour', hozAlign: 'right', sorter: 'number', width: 100, formatter: signed, visible: false },
-      { title: 'Material $', field: 'material', hozAlign: 'right', sorter: 'number', width: 105, formatter: signed, visible: false },
-      { title: 'Lines', field: 'lines', hozAlign: 'right', sorter: 'number', width: 70 },
-      { title: 'Biggest miss', field: 'miss', minWidth: 170, headerFilter: 'input', formatter: (c) => { const d = c.getRow().getData(); return d.miss ? `${esc(d.miss)} <span class="${cls(d.missDollars)}">${smoney0(d.missDollars)}</span>` : ''; } },
-      { title: 'Post-mortem', field: 'pmStatus', minWidth: 150, headerFilter: 'list', headerFilterParams: { values: statusLabel, clearable: true }, formatter: (c) => { const d = c.getRow().getData(); return d.pmId ? `<a href="/postmortems/${d.pmId}"><span class="chip chip-status-${d.pmStatus}">${esc(statusLabel[d.pmStatus])}</span></a>` : `<a class="chip chip-status-flagged" href="/jobs/${encodeURIComponent(d.job)}">Flagged - review</a>`; } },
-    ],
+    movableColumns: true, // drag a column title to move it
+    // tick boxes in the first column pick jobs for the Study page
+    selectableRows: true,
+    rowHeader: { formatter: 'rowSelection', titleFormatter: selectAllTitle, headerSort: false, resizable: false, frozen: true, headerHozAlign: 'center', hozAlign: 'center', width: 68, cellClick: (e, cell) => cell.getRow().toggleSelect() },
+    columns,
   });
 
-  // column chooser
-  const picker = document.getElementById('colPicker');
-  table.on('tableBuilt', () => {
-    if (!picker) return;
-    picker.innerHTML = '';
-    table.getColumns().forEach((col) => {
-      const def = col.getDefinition();
-      const id = 'col_' + def.field;
-      const label = document.createElement('label');
-      label.className = 'check';
-      label.innerHTML = `<input type="checkbox" id="${id}" ${col.isVisible() ? 'checked' : ''}> ${esc(def.title)}`;
-      label.querySelector('input').addEventListener('change', (e) => (e.target.checked ? col.show() : col.hide()));
-      picker.appendChild(label);
-    });
-  });
+  // ---- "Study ticked jobs": link to the Study page with the ticked job numbers
+  const studyLink = document.getElementById('studySelected');
+  const studyCount = document.getElementById('studyCount');
+  const MAX_STUDY = 300;
+  const refreshStudy = () => {
+    if (!studyLink) return;
+    const jobs = table.getSelectedData().map((r) => r.job);
+    if (studyCount) studyCount.textContent = String(jobs.length);
+    const usable = jobs.length > 0 && jobs.length <= MAX_STUDY;
+    studyLink.classList.toggle('disabled', !usable);
+    studyLink.setAttribute('aria-disabled', usable ? 'false' : 'true');
+    studyLink.href = usable ? `/study?jobs=${encodeURIComponent(jobs.join(','))}` : '/study';
+    studyLink.title = jobs.length > MAX_STUDY ? `Study up to ${MAX_STUDY} jobs at a time` : 'Study the ticked jobs side by side';
+  };
+  table.on('rowSelectionChanged', refreshStudy);
+
+  UFJobColumns.attachMenu(table, { defs, saved, saveUrl: '/jobs/columns', resetUrl: '/jobs/columns/reset' });
 });

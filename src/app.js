@@ -12,7 +12,11 @@ import { randomBytes } from 'node:crypto';
 
 import * as fmt from './format.js';
 import { SESSION_COOKIE, countUsers, getSession, safeEqual, LoginThrottle, purgeExpiredSessions } from './auth.js';
-import { resolveAppSecret } from './settings.js';
+import { resolveAppSecret, getAppearance, getSettings } from './settings.js';
+import { normaliseBands, bandStyle } from './marginBands.js';
+import { tableStyleCss } from './tableStyles.js';
+import { COLUMN_HELP } from './columnHelp.js';
+import { columnHelpOn, pageWidthOf, PAGE_WIDTHS } from './prefs.js';
 import { lastSync } from './sync/sync.js';
 import { UserError, forbidden } from './errors.js';
 import { makeLogger } from './mask.js';
@@ -25,6 +29,8 @@ import postMortemRoutes from './routes/postmortems.js';
 import actionRoutes from './routes/actions.js';
 import settingsRoutes from './routes/settings.js';
 import reportRoutes from './routes/report.js';
+import studyRoutes from './routes/study.js';
+import accuracyRoutes from './routes/accuracy.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -56,13 +62,15 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
     options: {
       noCache: process.env.NODE_ENV !== 'production',
       onConfigure(env) {
-        for (const name of ['money', 'smoney', 'money0', 'hrs', 'shrs', 'spct', 'pct', 'qty', 'dateOnly', 'dateTime', 'clockTime']) {
+        for (const name of ['money', 'smoney', 'smoney0', 'spts', 'money0', 'hrs', 'shrs', 'spct', 'pct', 'qty', 'dateOnly', 'dateTime', 'clockTime']) {
           env.addFilter(name, fmt[name]);
         }
         // JSON that is safe to place inside a <script> tag (no way to close the tag early)
         env.addFilter('json', (v) =>
           JSON.stringify(v).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'),
         );
+        // {{ margin | bandStyle(marginBands, target) }}: the colour style for a margin fraction, judged against its own target (both fractions), by the Settings > Margin % Colours bands ('' = none)
+        env.addFilter('bandStyle', (margin, bands, target) => bandStyle(bands, margin, target));
         env.addGlobal('STATUS_LABELS', fmt.STATUS_LABELS);
         env.addGlobal('DQ_LABELS', fmt.DQ_LABELS);
       },
@@ -75,6 +83,7 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
   // ------------------------------------------------------------- rendering helper
   app.decorateReply('page', function page(template, data = {}) {
     const req = this.request;
+    const settings = getSettings(db);
     const base = {
       user: req.user ?? null,
       csrf: req.session?.csrf ?? '',
@@ -83,6 +92,13 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
       ok: typeof req.query?.ok === 'string' ? req.query.ok.slice(0, 300) : '',
       err: typeof req.query?.err === 'string' ? req.query.err.slice(0, 300) : '',
       lastSync: req.user ? lastSync(db) : null,
+      appearance: getAppearance(db),
+      tableCss: tableStyleCss(settings.tableStyles),
+      marginBands: normaliseBands(settings.marginBandsVsTarget),
+      columnHelp: req.user ? columnHelpOn(db, req.user.id) : false,
+      columnHelpData: COLUMN_HELP,
+      pageWidth: req.user ? pageWidthOf(db, req.user.id) : 'full',
+      pageWidths: PAGE_WIDTHS,
     };
     return this.type('text/html; charset=utf-8').view(template, { ...base, ...data });
   });
@@ -150,12 +166,12 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
     }
     const view = {
       status,
-      title: status === 404 ? 'Not found' : status === 403 ? 'Not allowed' : status >= 500 ? 'Something went wrong' : 'Problem',
+      title: status === 404 ? 'Not Found' : status === 403 ? 'Not Allowed' : status >= 500 ? 'Something Went Wrong' : 'Problem',
       message: safe ? err.message : `Something went wrong on our side. Reference ${ref}. See the console window for details.`,
     };
     return reply.status(status).page('error.njk', view);
   });
-  app.setNotFoundHandler((req, reply) => reply.status(404).page('error.njk', { status: 404, title: 'Not found', message: 'That page was not found.' }));
+  app.setNotFoundHandler((req, reply) => reply.status(404).page('error.njk', { status: 404, title: 'Not Found', message: 'That page was not found.' }));
 
   app.get('/healthz', async () => ({ ok: true }));
 
@@ -167,6 +183,8 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
   await app.register(actionRoutes);
   await app.register(settingsRoutes);
   await app.register(reportRoutes);
+  await app.register(studyRoutes);
+  await app.register(accuracyRoutes);
 
   const sweep = setInterval(() => purgeExpiredSessions(db, now()), 3600_000);
   sweep.unref();

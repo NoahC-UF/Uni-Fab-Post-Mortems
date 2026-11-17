@@ -51,7 +51,7 @@ export const BAQ_MAP = {
   },
 
   jobOperations: {
-    id: 'Claude_PostMortem_JobOperations',
+    id: 'Claude_PostMortem_JobOps', // Epicor Query IDs are limited to 30 characters
     label: 'Job operations',
     keys: ['jobNum', 'assemblySeq', 'oprSeq'],
     columns: {
@@ -148,7 +148,7 @@ export const BAQ_MAP = {
   },
 
   materialTransactions: {
-    id: 'Claude_PostMortem_MaterialTransactions',
+    id: 'Claude_PostMortem_MtlTrans', // Epicor Query IDs are limited to 30 characters
     label: 'Material transactions',
     keys: ['tranNum'],
     columns: {
@@ -171,6 +171,29 @@ export const BAQ_MAP = {
       Calculated_ScopeDate: ['scopeDate', 'date'],
     },
   },
+
+  // OPTIONAL: gives the job page its sale price and margins. If this BAQ is not in Epicor yet (or fails),
+  // the sync still succeeds, notes it in the sync log, and the page simply shows no price or margin.
+  // One row per production link (JobProd) between a job and a sales order release.
+  jobRevenue: {
+    id: 'Claude_PostMortem_JobRevenue',
+    label: 'Job sale price',
+    optional: true,
+    keys: ['jobNum', 'orderNum', 'orderLine', 'orderRelNum'],
+    columns: {
+      JobProd_Company: ['company', 'string'],
+      JobProd_JobNum: ['jobNum', 'string', 'req'],
+      JobProd_OrderNum: ['orderNum', 'id', 'req'],
+      JobProd_OrderLine: ['orderLine', 'id'],
+      JobProd_OrderRelNum: ['orderRelNum', 'int'],
+      JobProd_ProdQty: ['allocQty', 'number', 'warn'], // how much of the line this job makes
+      OrderDtl_OrderQty: ['orderQty', 'number', 'warn'], // the whole line, same unit as ProdQty
+      OrderDtl_ExtPriceDtl: ['extPrice', 'number', 'req'], // line price in the COMPANY (base) currency = CAD
+      OrderDtl_DocExtPriceDtl: ['docExtPrice', 'number'], // same, in the order's own currency
+      OrderHed_CurrencyCode: ['currencyCode', 'string'],
+      Calculated_ScopeDate: ['scopeDate', 'date'],
+    },
+  },
 };
 
 // Material transaction types. Verify against your system (docs/BAQ_SETUP.md 7.3).
@@ -181,7 +204,7 @@ export const TRAN_TYPES = {
 };
 
 // Order the BAQs are pulled in during a sync.
-export const SYNC_ORDER = ['jobHeader', 'jobOperations', 'laborDetail', 'jobMaterials', 'materialTransactions'];
+export const SYNC_ORDER = ['jobHeader', 'jobOperations', 'laborDetail', 'jobMaterials', 'materialTransactions', 'jobRevenue'];
 
 /** field name -> Epicor column name (used by the mock data to produce BAQ-shaped rows). */
 export function columnFor(baqKey, field) {

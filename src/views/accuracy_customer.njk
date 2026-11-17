@@ -1,0 +1,117 @@
+{% extends "base.njk" %}
+{% from "_accuracy.njk" import tile, filterBar, opTable, mtlTable, pmcell, marginCell, tierChip, managerText, listPicker, lists %}
+{% from "_macros.njk" import varcell %}
+{% block title %}Post-Mortem Review: {{ c.summary.label }}{% endblock %}
+{% block head %}
+<script src="/vendor/chart/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+{% set f = c.filters %}
+{% set s = c.summary %}
+{% set custBase = base ~ '&cust=' ~ (c.key | urlencode) %}
+<div class="page-head">
+  <div>
+    <h1>{{ s.label }}</h1>
+    <div class="muted acc-crumbs"><a href="/accuracy/customers?{{ base }}">Customers</a> &rsaquo; {{ s.label }} &middot; {{ f.from }} to {{ f.to }}</div>
+    {% if c.key != internalKey %}<div class="acc-org">Tier {{ tierChip(s) }} <span class="muted">&middot;</span> Account Manager: <b>{{ managerText(s) }}</b></div>{% endif %}
+  </div>
+  <div class="row no-print">
+    <a class="btn" href="/accuracy/customers?{{ base }}">&larr; All Customers</a>
+    {% if c.key != internalKey %}<a class="btn" href="/jobs?cust={{ c.key | urlencode }}&from={{ f.from }}&to={{ f.to }}&flag=all">Open in Flagged Jobs</a>{% endif %}
+  </div>
+</div>
+
+{{ filterBar(f, '/accuracy/customers/' ~ (c.key | urlencode), sorts, bases, false, '', presets, org, orders) }}
+
+<div class="tiles">
+  {{ tile('Jobs', s.jobs, s.jobsOff ~ ' off', '') }}
+  {{ tile('Margin', ((s.marginPct * 100) | round(1) ~ '%') if s.marginPct !== null else 'n/a', ((s.margin | smoney0) ~ ' on ' ~ (s.price | money0) ~ ' sold &middot; ' ~ s.pricedJobs ~ ' priced job' ~ ('' if s.pricedJobs == 1 else 's') ~ ((' &middot; includes ' ~ (s.orderCost | money0) ~ ' of cost from unpriced jobs on the same orders') if s.orderCost else '') ~ ((' &middot; ' ~ (s.vsTarget | smoney0) ~ ' vs the ' ~ ((c.targetMargin * 100) | round(1)) ~ '% ' ~ ('tier ' ~ s.tier ~ ' ' if s.tier else '') ~ 'target') if s.vsTarget !== null else '')) if s.pricedJobs else 'no priced closed jobs', 't-green' if s.marginPct !== null and s.marginPct >= c.targetMargin else 't-yellow') }}
+  {{ tile('Net Variance', (s.netDollars | smoney0), 'gross ' ~ (s.grossDollars | money0) ~ ' &middot; ' ~ (s.avgPct | spct), 't-red' if s.netDollars > 0 else 't-blue') }}
+  {{ tile('Labour vs Material', s.mainly, (s.labourDollars | smoney0) ~ ' labour &middot; ' ~ (s.materialDollars | smoney0) ~ ' material', 't-yellow') }}
+  {{ tile('Jobs Off', (s.pctOff | pct), (c.shop.pctOff | pct) ~ ' across the shop &middot; ' ~ ((s.vsShop * 100) | spts), 't-red' if s.vsShop > 0 else 't-green') }}
+  {{ tile('Accuracy', ((1 - s.pctOff) | pct), 'shop-wide ' ~ (c.shop.accuracy | pct), 't-green' if s.vsShop <= 0 else 't-yellow') }}
+  {{ tile('Attention Score', (s.attention | money0), 'gross variance &times; share of jobs off', 't-yellow') }}
+</div>
+<div class="flash {{ 'flash-warn' if s.vsShop > 0.005 else 'flash-info' }} acc-compare">
+  {% if s.vsShop > 0.005 %}<b>Worse than normal:</b> {{ s.pctOff | pct }} of this customer's jobs were off, against {{ c.shop.pctOff | pct }} for the shop as a whole ({{ (s.vsShop * 100) | spts }}).
+  {% elif s.vsShop < -0.005 %}<b>Better than normal:</b> {{ s.pctOff | pct }} of this customer's jobs were off, against {{ c.shop.pctOff | pct }} for the shop as a whole ({{ (s.vsShop * 100) | spts }}).
+  {% else %}<b>In line with the shop:</b> {{ s.pctOff | pct }} of this customer's jobs were off, the same as the shop as a whole ({{ c.shop.pctOff | pct }}).{% endif %}
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Variance % Over Time</h2>
+      <span class="seg no-print"><small class="muted">By</small>
+        <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'month' }}" href="/accuracy/customers/{{ c.key | urlencode }}?{{ base }}&trend=month">Month</a>
+        <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'quarter' }}" href="/accuracy/customers/{{ c.key | urlencode }}?{{ base }}&trend=quarter">Quarter</a></span></div>
+    <div class="muted" style="margin:4px 0">Net variance % of this customer's work, by when it was done.</div>
+    <div class="chart-box" style="height:230px"><canvas id="trendChart"></canvas></div>
+    <script type="application/json" id="trendData">{{ {'points': c.trend, 'green': greenMax} | json | safe }}</script>
+  </div>
+  <div class="card">
+    <h2>Post-Mortems for This Customer</h2>
+    <div class="kv acc-kv">
+      <div><span>Flagged Jobs</span><b>{{ c.pmProgress.flagged }}</b></div>
+      <div><span>Post-Mortem Completed</span><b>{{ c.pmProgress.done }}</b></div>
+      <div><span>In Progress</span><b>{{ c.pmProgress.started }}</b></div>
+      <div><span>Not Started</span><b>{{ c.pmProgress.pending }}</b></div>
+    </div>
+    <h3 style="margin-top:12px">Root Causes Picked</h3>
+    {% if c.causes.length %}
+    <table data-table="acc-cust-detail" class="t t-fit" data-help-scope="accuracy" style="max-width:520px">
+      <thead><tr><th>Root Cause</th><th class="num">Post-Mortems</th></tr></thead>
+      <tbody>{% for r in c.causes %}<tr><td>{{ r.name }}</td><td class="num">{{ r.n }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<div class="muted">No post-mortem for this customer has picked a root cause yet.</div>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>What Is Going Wrong on This Customer's Work</h2>
+  <div class="muted" style="margin-bottom:8px">The same lists as the Operations &amp; Materials page, for this customer only. Click a row to drill into it. Every group is shown here, however few jobs it has.</div>
+  <div class="row no-print" style="margin-bottom:8px">{{ listPicker(f, '/accuracy/customers/' ~ (c.key | urlencode), listLinks, listViews) }}</div>
+  {{ lists(f,
+    { 'title': 'Operations: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': opTable(c.ops.over, custBase, ''), 'foot': '' },
+    { 'title': 'Operations: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': opTable(c.ops.under, custBase, ''), 'foot': '' }) }}
+  <div style="height:14px"></div>
+  {{ lists(f,
+    { 'title': 'Materials: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': mtlTable(c.mtls.over, custBase, ''), 'foot': '' },
+    { 'title': 'Materials: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': mtlTable(c.mtls.under, custBase, ''), 'foot': '' }) }}
+</div>
+
+<div class="card">
+  <h2>Repeat Part Numbers <small class="muted">off on {{ repeatMin }} or more jobs</small></h2>
+  <div class="muted" style="margin-bottom:8px">The same part coming in off again and again: fix that part's quote or routing first.</div>
+  {% if c.repeatParts.length %}
+  <table data-table="acc-cust-detail" class="t t-fit acc-table" data-help-scope="accuracy">
+    <thead><tr><th>Part</th><th class="num">Jobs</th><th class="num">Jobs Off</th><th class="num">Net Var $</th><th class="num">Avg Var %</th></tr></thead>
+    <tbody>{% for p in c.repeatParts %}<tr><td><b>{{ p.part }}</b>{% if p.description %}<br><small class="muted">{{ p.description }}</small>{% endif %}</td><td class="num">{{ p.jobs }}</td><td class="num">{{ p.off }}</td><td class="num">{{ varcell(p.varD) }}</td><td class="num">{{ varcell(p.avgPct, 'pct') }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<div class="empty">No part is off on {{ repeatMin }} or more jobs for this customer.</div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>All Jobs <small class="muted">{{ c.jobCount }}{{ ', showing the biggest 500' if c.jobCount > 500 }}</small></h2>
+  <div class="table-wrap">
+  <table data-table="acc-cust-detail" class="t t-fit acc-table" data-help-scope="accuracy">
+    <thead><tr><th>Job</th><th>Part</th><th class="num">Sale Price $</th><th class="num">Margin $</th><th class="num">Margin %</th><th class="num" data-help="Planned cost of the job: labour, material, sub-assemblies and subcontract (the same as the margin).">Est $</th><th class="num" data-help="Actual cost of the job: labour, material, sub-assemblies, subcontract and unestimated work (the same as the margin). Sale Price less Act $ is the margin.">Act $</th><th class="num">Var $</th><th class="num">Var %</th><th class="num">Labour Var $</th><th class="num">Material Var $</th><th class="num" data-help="The part of Net Var $ that is not in the Labour or Material columns: sub-assembly jobs that cost more or less than planned, inspection material at its real cost, and work with no estimate. Labour + Material + Other = Net Var $.">Other Var $</th><th>Post-Mortem</th></tr></thead>
+    <tbody>
+    {% for j in c.jobs %}
+      <tr>
+        <td class="nowrap"><a href="/jobs/{{ j.job }}">{{ j.job }}</a>{% if j.off %} <span class="chip chip-red" title="This job as a whole was off">Off</span>{% endif %}</td>
+        <td>{{ j.part }}</td>
+        <td class="num">{% if j.priced %}{{ j.price | money0 }}{% else %}<span class="muted" title="{{ 'Still in progress: no margin yet' if not j.closed else 'No sale price for this job' }}">n/a</span>{% endif %}</td>
+        <td class="num">{% if j.priced %}<span class="{{ 'neg-good' if j.margin > 0 else ('neg-bad' if j.margin < 0 else 'muted') }}">{{ j.margin | smoney0 }}</span>{% else %}<span class="muted">n/a</span>{% endif %}</td>
+        <td class="num">{{ marginCell(j, c.targetMargin, marginBands) }}</td>
+        <td class="num">{{ j.estD | money0 }}</td><td class="num">{{ j.actD | money0 }}</td>
+        <td class="num">{{ varcell(j.varD) }}</td><td class="num">{{ varcell(j.pct, 'pct') }}</td>
+        <td class="num">{{ varcell(j.labour) }}</td><td class="num">{{ varcell(j.material) }}</td><td class="num">{{ varcell(j.other) }}</td>
+        <td>{{ pmcell(j.pm, j.job) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

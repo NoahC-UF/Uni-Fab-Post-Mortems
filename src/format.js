@@ -51,6 +51,22 @@ export function pct(v) {
   return isNum(v) ? `${f1.format(Number(v) * 100)}%` : '';
 }
 
+/** a number of percentage points -> +12.2 pts / -16.1 pts */
+export function spts(v) {
+  if (!isNum(v)) return 'n/a';
+  const n = Number(v);
+  if (Math.abs(n) < 0.05) return '0.0 pts';
+  return `${n > 0 ? '+' : '-'}${f1.format(Math.abs(n))} pts`;
+}
+
+/** +$68,867 / -$68,867 (whole dollars) */
+export function smoney0(v) {
+  if (!isNum(v)) return '';
+  const n = Number(v);
+  if (n === 0) return '$0';
+  return `${n > 0 ? '+' : '-'}$${f0.format(Math.abs(n))}`;
+}
+
 export function qty(v) {
   return isNum(v) ? fq.format(Number(v)) : '';
 }

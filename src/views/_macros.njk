@@ -28,3 +28,70 @@
 {% macro dqicons(list) %}
 {% if list and list.length %}<span class="dq" title="{% for d in list %}{{ DQ_LABELS[d] or d }}{{ '; ' if not loop.last }}{% endfor %}">&#9888; {{ list.length }}</span>{% endif %}
 {% endmacro %}
+
+{# Price and margin table, verdict and footnote. Used on the job page and the printable report. e = economics, closed = is the job closed #}
+{% macro marginBody(e) %}
+<div class="table-wrap">
+  <table class="t t-fit margin-table" data-table="job-margin">
+    <thead><tr><th></th><th class="num">Planned (Job Set-Up)</th><th class="num">{{ 'Actual (Final)' if e.closed else 'Actual (So Far)' }}</th><th class="num">Difference</th></tr></thead>
+    <tbody>
+      <tr><td><b>Sale price</b></td>
+        <td class="num">{{ (e.price | money) if e.price else 'n/a' }}</td><td class="num">{{ (e.price | money) if e.price else 'n/a' }}</td><td class="num"></td></tr>
+      <tr><td>Labour cost <small class="muted">(hours x rates, with burden)</small></td>
+        <td class="num">{{ e.labour.planned | money }}</td><td class="num">{{ e.labour.actual | money }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if e.labour.diff > 0 }}">{{ e.labour.diff | smoney }}</span></td></tr>
+      <tr><td>Material cost{% if e.material.inspection %} <small class="muted">(includes purchased material received through inspection at its real cost)</small>{% endif %}</td>
+        <td class="num">{{ e.material.planned | money }}</td><td class="num">{{ e.material.actual | money }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if e.material.diff > 0 }}">{{ e.material.diff | smoney }}</span></td></tr>
+      {% if e.subAssembly and (e.subAssembly.actual or e.subAssembly.planned) %}
+      <tr><td>Sub-assemblies <small class="muted">({% for i in e.subAssembly.items %}{% if i.job %}<a href="/jobs/{{ i.job }}">{{ i.job }}</a>{% else %}{{ i.part }}{% endif %}{{ ', ' if not loop.last }}{% endfor %}: cost of the jobs that made them)</small></td>
+        <td class="num">{{ e.subAssembly.planned | money }}</td><td class="num">{{ e.subAssembly.actual | money }}</td>
+        <td class="num"><span class="{{ 'neg-bad' if e.subAssembly.diff > 0 }}">{{ e.subAssembly.diff | smoney }}</span></td></tr>
+      {% endif %}
+      {% if e.subcontract and e.subcontract.actual %}
+      <tr><td>Subcontract <small class="muted">(outside services received; no estimate is kept, so planned = actual)</small></td>
+        <td class="num">{{ e.subcontract.planned | money }}</td><td class="num">{{ e.subcontract.actual | money }}</td><td class="num"></td></tr>
+      {% endif %}
+      <tr class="total-row"><td><b>Total cost</b></td>
+        <td class="num"><b>{{ e.cost.planned | money }}</b></td><td class="num"><b>{{ e.cost.actual | money }}</b></td>
+        <td class="num"><span class="{{ 'neg-bad' if e.cost.diff > 0 }}">{{ e.cost.diff | smoney }}{% if e.cost.diffPct !== null %} ({{ e.cost.diffPct | spct }}){% endif %}</span></td></tr>
+      {% if e.price %}
+      <tr class="total-row"><td><b>Margin ($)</b></td>
+        <td class="num"><b>{{ e.margin.planned | money }}</b></td><td class="num"><b>{{ e.margin.actual | money }}</b></td>
+        <td class="num"><span class="{{ 'neg-bad' if e.margin.actual < e.margin.planned }}">{{ (e.margin.actual - e.margin.planned) | smoney }}</span></td></tr>
+      <tr class="total-row"><td><b>Margin (%)</b></td>
+        <td class="num"><b class="{{ 'neg-bad' if e.margin.plannedPct < e.target }}">{{ e.margin.plannedPct | pct }}</b></td>
+        <td class="num"><b class="{{ 'neg-bad' if e.margin.actualPct < e.target }}">{{ e.margin.actualPct | pct }}</b></td>
+        <td class="num"><span class="muted">{{ (e.margin.actualPct - e.margin.plannedPct) | spct }} pts</span></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+  <div class="flash {{ {'bad': 'flash-warn', 'warn': 'flash-warn', 'good': 'flash-ok', 'info': 'flash-info'}[e.verdict.tone] }}" style="margin:12px 0 0">{{ e.verdict.text }}</div>
+<p class="muted" style="margin:10px 0 0;font-size:.85rem">Planned = what the job was set up to cost (estimated hours and required material). Actual = hours booked at the same rates plus material issued, net of returns, the cost of any sub-assembly jobs this job used, and subcontract{% if not e.closed %}, so far{% endif %}.
+    Freight and overhead are not in this data, so real margins may be lower where a job used them.{% if e.priceAssumed %} Some order lines did not say how much of the line this job makes, so the whole line was counted.{% endif %}</p>
+{% endmacro %}
+
+{# The date controls shared by the Dashboard, Ops & Materials and Customers:  [quick ranges] | From [..] To [..] [Apply].
+   presets = [{ label, on, href }]. Put dateFields inside the page's own form. #}
+{% macro presetButtons(presets) %}{% for p in presets %}<a class="btn btn-sm {{ 'btn-primary' if p.on }}" href="{{ p.href }}">{{ p.label }}</a>{% endfor %}{% endmacro %}
+{% macro dateFields(from, to) %}
+<label>From <input type="date" name="from" value="{{ from }}"></label>
+<label>To <input type="date" name="to" value="{{ to }}"></label>
+<button class="btn btn-sm btn-primary" type="submit">Apply</button>
+{% endmacro %}
+
+{# The Columns menu above a job table (public/job-columns.js fills it in). #}
+{% macro colmenu() %}
+<details class="col-menu">
+  <summary class="btn btn-sm">Columns</summary>
+  <div class="card col-menu-panel">
+    <div id="colPicker"></div>
+    <div class="col-menu-foot">
+      <button class="btn btn-sm btn-primary" type="button" id="colSave" title="Remember these columns and their order for you, on any computer">Save as my default</button>
+      <button class="btn btn-sm" type="button" id="colReset" title="Go back to the standard columns">Reset to standard</button>
+      <small class="muted" id="colMsg" role="status"></small>
+    </div>
+  </div>
+</details>
+{% endmacro %}

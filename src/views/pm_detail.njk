@@ -2,7 +2,7 @@
 {% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons %}
 {% set j = snap.job %}
 {% set done = (pm.status == 'closed' or pm.status == 'dismissed') %}
-{% block title %}Post-mortem · Job {{ j.jobNum }}{% endblock %}
+{% block title %}Post-Mortem · Job {{ j.jobNum }}{% endblock %}
 
 {# every form here swaps just the #pm-main block and the flash message, no full page reload #}
 {% macro hx(id) %}hx-post="{{ id }}" hx-target="#pm-main" hx-select="#pm-main" hx-select-oob="#flash" hx-swap="outerHTML"{% endmacro %}
@@ -11,7 +11,7 @@
 <div id="pm-main">
 <div class="page-head">
   <div>
-    <h1>Post-mortem · Job <a href="/jobs/{{ j.jobNum }}">{{ j.jobNum }}</a></h1>
+    <h1>Post-Mortem · Job <a href="/jobs/{{ j.jobNum }}">{{ j.jobNum }}</a></h1>
     <div class="row">{{ statuschip(pm.status) }} <span class="muted">{{ j.partNum }} · {{ j.partDescription }} · {{ j.custName or '(no order)' }}</span></div>
   </div>
   <div class="row no-print">
@@ -47,7 +47,7 @@
         {{ csrfField(csrf) }}
         <label>Owner
           <select name="owner"><option value="">Unassigned</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if u.id == pm.owner_user_id }}>{{ u.name }}</option>{% endfor %}</select></label>
-        <label>Review date <input type="date" name="reviewDate" value="{{ pm.review_date }}"></label>
+        <label>Review Date <input type="date" name="reviewDate" value="{{ pm.review_date }}"></label>
         <button class="btn" type="submit">Save</button>
       </form>
       <div class="muted" style="margin-top:8px">Started {{ pm.created_at | dateTime }} by {{ pm.created_by_name or 'unknown' }} · last change {{ pm.updated_at | dateTime }}</div>
@@ -77,7 +77,7 @@
     </div>
 
     <div class="card">
-      <h2>Root causes</h2>
+      <h2>Root Causes</h2>
       <form method="post" action="/postmortems/{{ pm.id }}/causes" {{ hx('/postmortems/' ~ pm.id ~ '/causes') | safe }}>
         {{ csrfField(csrf) }}
         <div class="causes">
@@ -104,9 +104,9 @@
 
   <div>
     <div class="card">
-      <h2>Action items</h2>
+      <h2>Action Items</h2>
       {% if pm.actions.length %}
-      <table class="t">
+      <table data-table="pm-actions" class="t" data-help-scope="actions">
         <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
         <tbody>
         {% for a in pm.actions %}
@@ -131,7 +131,7 @@
         </tbody>
       </table>
       {% else %}<div class="muted">No action items yet.</div>{% endif %}
-      <h3 style="margin-top:16px">Add an action</h3>
+      <h3 style="margin-top:16px">Add an Action</h3>
       <form method="post" action="/postmortems/{{ pm.id }}/actions" {{ hx('/postmortems/' ~ pm.id ~ '/actions') | safe }} class="stack-sm">
         {{ csrfField(csrf) }}
         <label>What needs to happen? <input name="description" required maxlength="1000" placeholder="e.g. Update WELD routing hours for part {{ j.partNum }}"></label>
@@ -144,7 +144,7 @@
     </div>
 
     <div class="card">
-      <h2>Numbers at review start <small class="muted">(frozen {{ pm.snapshot_taken_at | dateTime }} UTC)</small></h2>
+      <h2>Numbers at Review Start <small class="muted">(frozen {{ pm.snapshot_taken_at | dateTime }} UTC)</small></h2>
       <div class="kv" style="margin-bottom:12px">
         <div><span>Labour variance</span><b>{{ varcell(snap.totals.labour.varDollars) }}</b></div>
         <div><span>Material variance</span><b>{{ varcell(snap.totals.material.varDollars) }}</b></div>
@@ -153,7 +153,7 @@
       </div>
       <div class="muted" style="margin-bottom:6px">Thresholds then: green &lt; {{ (snap.meta.settings.greenMax | pct) if snap.meta else '' }}, red &gt; {{ (snap.meta.settings.yellowMax | pct) if snap.meta else '' }}; minimum {{ snap.meta.settings.minHours if snap.meta }} hrs or {{ snap.meta.settings.minDollars | money0 if snap.meta }}.</div>
       <h3>Labour</h3>
-      <div class="table-wrap"><table class="t">
+      <div class="table-wrap"><table data-table="pm-ops" class="t" data-help-scope="pm-ops">
         <thead><tr><th>Op</th><th class="num">Est</th><th class="num">Actual</th><th class="num">Var %</th><th class="num">$ var</th><th>Flag</th></tr></thead>
         <tbody>
         {% for o in snap.ops %}{% if o.counts %}
@@ -164,7 +164,7 @@
         </tbody></table></div>
       {% if snap.materials.length %}
       <h3 style="margin-top:12px">Material</h3>
-      <div class="table-wrap"><table class="t">
+      <div class="table-wrap"><table data-table="pm-mtl" class="t" data-help-scope="pm-mtl">
         <thead><tr><th>Part</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">$ var</th><th class="num">Usage</th><th class="num">Cost basis</th><th>Flag</th></tr></thead>
         <tbody>
         {% for m in snap.materials %}

@@ -4,33 +4,16 @@ import { buildJobView } from '../jobView.js';
 import { createPostMortem, getPostMortemByJob, snapshotChanges } from '../postmortems.js';
 import { UserError, notFound } from '../errors.js';
 import { STATUS_LABELS } from '../format.js';
+import { getPref, setPref, deletePref } from '../prefs.js';
+import { CAUSE_LABELS } from '../economics.js';
+import { getSettings } from '../settings.js';
+import { GRID_COLUMNS, clientRows } from '../gridRows.js';
+import { normaliseColumnPref, parseColumnPrefBody } from '../columnPrefs.js';
 
 const JOB_RE = /^[A-Za-z0-9._-]{1,30}$/;
 const FLAG_RANK = { red: 3, yellow: 2, green: 1 };
 
-function clientRows(rows) {
-  return rows.map((r) => ({
-    job: r.job_num,
-    part: r.part_num,
-    partDesc: r.part_description,
-    customer: r.cust_name || '',
-    state: r.closed ? 'Closed' : 'In progress',
-    closedDate: r.closed_date || '',
-    flag: r.flag,
-    lines: r.flagged_lines,
-    impact: r.impact_dollars,
-    over: r.over_dollars,
-    under: r.under_dollars,
-    net: r.net_dollars,
-    labour: r.labour_var_dollars,
-    material: r.material_var_dollars,
-    miss: topMissLabel(r.topMiss),
-    missDollars: r.topMiss?.var_dollars ?? null,
-    pmId: r.pm_id,
-    pmStatus: r.pm_status || 'flagged',
-    pmLabel: STATUS_LABELS[r.pm_status || 'flagged'],
-  }));
-}
+const COLUMNS_PREF = 'jobs.columns';
 
 export default async function jobRoutes(app) {
   const { db, now } = app.ctx;
@@ -40,13 +23,30 @@ export default async function jobRoutes(app) {
     const f = parseFilters(req.query, now(), 90);
     const rows = listJobs(db, f);
     const defaults = parseFilters({}, now(), 90);
+    const saved = getPref(db, req.user.id, COLUMNS_PREF);
+    // Opened from a bar of the Dashboard chart: say what the list is, and what it adds up to.
+    const lineFilter = f.lineOp && f.lineDir ? { op: f.lineOp, dir: f.lineDir, total: Math.round(rows.reduce((t, r) => t + (r.line_dollars || 0), 0)) } : null;
     return reply.page('jobs_list.njk', {
       f,
+      lineFilter,
       rows: clientRows(rows),
       total: rows.length,
       options: filterOptions(db),
       exportQuery: filterQuery(f, defaults),
+      targetMarginPct: getSettings(db).targetMarginPct,
+      savedColumns: normaliseColumnPref(saved, GRID_COLUMNS), // null = the standard columns
     });
+  });
+
+  // "Save as my default" for the grid's columns. Per person, so it follows them to any computer.
+  app.post('/jobs/columns', async (req, reply) => {
+    setPref(db, req.user.id, COLUMNS_PREF, parseColumnPrefBody(req.body, GRID_COLUMNS));
+    return reply.send({ ok: true });
+  });
+
+  app.post('/jobs/columns/reset', async (req, reply) => {
+    deletePref(db, req.user.id, COLUMNS_PREF);
+    return reply.send({ ok: true });
   });
 
   app.get('/jobs/export.xlsx', async (req, reply) => {
@@ -75,6 +75,15 @@ export default async function jobRoutes(app) {
       { header: 'Material $ var', key: 'material', width: 14 },
       { header: 'Biggest miss', key: 'miss', width: 22 },
       { header: 'Biggest miss $', key: 'missDollars', width: 14 },
+      { header: 'Sale price (CAD)', key: 'price', width: 16 },
+      { header: 'Planned cost', key: 'plannedCost', width: 14 },
+      { header: 'Actual cost', key: 'actualCost', width: 14 },
+      { header: 'Planned margin $', key: 'plannedMargin', width: 16 },
+      { header: 'Actual margin $', key: 'actualMargin', width: 16 },
+      { header: 'Planned margin %', key: 'plannedMarginPct', width: 16 },
+      { header: 'Actual margin %', key: 'actualMarginPct', width: 15 },
+      ...(f.lineOp && f.lineDir ? [{ header: `${f.lineOp} ${f.lineDir} $ (matching lines)`, key: 'lineDollars', width: 22 }] : []),
+      { header: 'Likely cause', key: 'cause', width: 16 },
       { header: 'Post-mortem', key: 'pm', width: 18 },
     ];
     for (const r of rows) {
@@ -83,10 +92,16 @@ export default async function jobRoutes(app) {
         state: r.closed ? 'Closed' : 'In progress', closed: r.closed_date || '', qty: r.qty_completed, lines: r.flagged_lines,
         impact: r.impact_dollars, over: r.over_dollars, under: r.under_dollars, net: r.net_dollars, labour: r.labour_var_dollars,
         material: r.material_var_dollars, miss: topMissLabel(r.topMiss), missDollars: r.topMiss?.var_dollars ?? null,
+        price: r.price, plannedCost: r.price === null ? null : r.planned_cost, actualCost: r.price === null ? null : r.actual_cost,
+        plannedMargin: r.planned_margin, actualMargin: r.actual_margin, plannedMarginPct: r.planned_margin_pct, actualMarginPct: r.actual_margin_pct,
+        lineDollars: r.line_dollars ?? null,
+        cause: CAUSE_LABELS[r.cause] ?? '',
         pm: STATUS_LABELS[r.pm_status || 'flagged'],
       });
     }
-    for (const k of ['impact', 'over', 'under', 'net', 'labour', 'material', 'missDollars']) ws.getColumn(k).numFmt = '$#,##0.00;[Red]-$#,##0.00';
+    for (const k of ['impact', 'over', 'under', 'net', 'labour', 'material', 'missDollars', 'price', 'plannedCost', 'actualCost', 'plannedMargin', 'actualMargin']) ws.getColumn(k).numFmt = '$#,##0.00;[Red]-$#,##0.00';
+    for (const k of ['plannedMarginPct', 'actualMarginPct']) ws.getColumn(k).numFmt = '0.0%;[Red]-0.0%';
+    if (f.lineOp && f.lineDir) ws.getColumn('lineDollars').numFmt = '$#,##0.00';
     const fill = { red: 'FFFDE4E1', yellow: 'FFFFF3C4', green: 'FFE3F4EA' };
     ws.eachRow((row, i) => {
       if (i === 1) return;

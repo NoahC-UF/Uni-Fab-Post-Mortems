@@ -1,0 +1,203 @@
+{% extends "base.njk" %}
+{% from "_accuracy.njk" import tile, filterBar, orgNote, opTable, mtlTable, pmcell, listPicker, lists %}
+{% from "_macros.njk" import varcell %}
+{% block title %}Post-Mortem Review: Operations and Materials{% endblock %}
+{% block head %}
+<script src="/vendor/chart/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+{% set f = d.filters %}
+<div class="page-head acc-head">
+  <div>
+    <h1 class="acc-title">Post-Mortem Review: Operations &amp; Materials</h1>
+  </div>
+  <div class="row no-print">
+    <a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=ops">&#8681; Operations CSV</a>
+    <a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=materials">&#8681; Materials CSV</a>
+  </div>
+</div>
+
+{{ filterBar(f, '/accuracy/ops', sorts, bases, true, hidden, presets, org, orders) }}
+{{ orgNote(f, '/accuracy/ops', baseNoOrg) }}
+
+{% if custLabel %}
+<div class="flash flash-info">Showing only <b>{{ custLabel }}</b>. <a href="/accuracy/customers/{{ f.cust | urlencode }}?{{ base }}">Back to this customer</a> &middot; <a href="/accuracy/ops?{{ baseNoCust }}">All customers</a></div>
+{% endif %}
+{% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
+
+<div class="tiles">
+  {{ tile('Labour Variance', (d.opT.netDollars | smoney0), 'net &middot; gross ' ~ (d.opT.grossDollars | money0), 't-red' if d.opT.netDollars > 0 else 't-blue') }}
+  {{ tile('Material Variance', (d.mtlT.netDollars | smoney0), 'net &middot; gross ' ~ (d.mtlT.grossDollars | money0), 't-red' if d.mtlT.netDollars > 0 else 't-blue') }}
+  {{ tile('Operation Accuracy', (d.opAccuracy | pct) if d.opAccuracy !== null else 'n/a', d.opT.linesOff ~ ' of ' ~ d.opT.lines ~ ' operations off', 't-green' if d.opAccuracy !== null and d.opAccuracy >= 0.8 else 't-yellow') }}
+  {{ tile('Material Accuracy', (d.mtlAccuracy | pct) if d.mtlAccuracy !== null else 'n/a', d.mtlT.linesOff ~ ' of ' ~ d.mtlT.lines ~ ' material lines off', 't-green' if d.mtlAccuracy !== null and d.mtlAccuracy >= 0.8 else 't-yellow') }}
+  {{ tile('Needs Attention', (d.attentionCount.ops + d.attentionCount.mtls), d.attentionCount.ops ~ ' operations &middot; ' ~ d.attentionCount.mtls ~ ' materials', 't-yellow') }}
+  {{ tile('Unestimated Work', (d.unestimated.actDollars | money0), d.unestimated.lines ~ ' lines with actuals but no estimate', '') }}
+</div>
+{% if dd %}
+<!-- ============================================================ drill-down -->
+<div class="card acc-drill" id="drill">
+  <div class="page-head" style="margin-bottom:6px">
+    <div>
+      <h2 style="margin-bottom:2px">{{ dd.group.label }}{% if dd.group.description %} <small class="muted">{{ dd.group.description }}</small>{% endif %}</h2>
+      <div class="muted acc-crumbs">
+        <a href="/accuracy/ops?{{ base }}">{{ 'Operations' if dd.kind == 'op' else 'Materials' }}</a> &rsaquo;
+        {% if dd.part %}<a href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}#drill">{{ dd.group.label }}</a> &rsaquo; Part {{ dd.part }}{% else %}{{ dd.group.label }}{% endif %}
+        &middot; {{ 'Over estimate' if dd.group.netDollars > 0 else ('Under estimate' if dd.group.netDollars < 0 else 'On estimate') }}
+      </div>
+    </div>
+    <a class="btn no-print" href="/accuracy/ops?{{ base }}">Close</a>
+  </div>
+
+  <div class="kv acc-kv">
+    <div><span>Jobs</span><b>{{ dd.group.jobs }}</b></div>
+    <div><span>Net Variance</span><b>{{ varcell(dd.group.netDollars) }}</b></div>
+    <div><span>Gross Variance</span><b>{{ dd.group.grossDollars | money0 }}</b></div>
+    <div><span>Avg Variance</span><b>{{ varcell(dd.group.avgPct, 'pct') }}</b></div>
+    <div><span>Jobs Off</span><b>{{ dd.group.jobsOff }} of {{ dd.group.jobs }} ({{ dd.group.pctOff | pct }})</b></div>
+    <div><span>Attention Score</span><b>{{ dd.group.attention | money0 }}</b></div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div>
+      {% if dd.kind == 'op' %}
+      <h3>Setup vs Run</h3>
+      <div class="muted" style="margin-bottom:6px">The fix is different for each: setup is usually the routing's set-up time, run is the standard per piece.</div>
+      <table data-table="acc-drill" class="t t-fit" data-help-scope="accuracy">
+        <thead><tr><th>Part of the Job</th><th class="num">Expected Hrs</th><th class="num">Actual Hrs</th><th class="num">Var Hrs</th><th class="num">Var %</th></tr></thead>
+        <tbody>
+          {% for row in [['Setup', dd.group.setup], ['Run (Production)', dd.group.run]] %}
+          <tr><td><b>{{ row[0] }}</b></td><td class="num">{{ row[1].est | hrs }}</td><td class="num">{{ row[1].act | hrs }}</td>
+            <td class="num">{{ varcell(row[1].var, 'hrs') }}</td>
+            <td class="num">{% if row[1].est > 0 %}{{ varcell(row[1].var / row[1].est, 'pct') }}{% else %}<span class="muted">n/a</span>{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <h3>Usage vs Price</h3>
+      <div class="muted" style="margin-bottom:6px">"We used more than planned" and "it cost more than planned" are different problems with different owners.</div>
+      <table data-table="acc-drill" class="t t-fit" data-help-scope="accuracy">
+        <thead><tr><th>Kind of Variance</th><th class="num">Var $</th><th>What It Means</th></tr></thead>
+        <tbody>
+          <tr><td><b>Usage</b></td><td class="num">{{ varcell(dd.group.usageDollars) }}</td><td class="muted">(Issued qty - expected qty) &times; estimated unit cost</td></tr>
+          <tr><td><b>Price</b></td><td class="num">{{ varcell(dd.group.priceDollars) }}</td><td class="muted">(Actual unit cost - estimated unit cost) &times; issued qty</td></tr>
+          <tr><td><b>Total</b></td><td class="num">{{ varcell(dd.group.netDollars) }}</td><td class="muted">Expected {{ dd.group.expQty | qty }}, issued {{ dd.group.actQty | qty }}</td></tr>
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    <div>
+      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Trend: Variance %</h3>
+        <span class="seg no-print"><small class="muted">By</small>
+          <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'month' }}" href="/accuracy/ops?{{ base }}&trend=month&drill={{ drillKey | urlencode }}{{ ('&dpart=' ~ (dd.part | urlencode)) if dd.part }}#drill">Month</a>
+          <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'quarter' }}" href="/accuracy/ops?{{ base }}&trend=quarter&drill={{ drillKey | urlencode }}{{ ('&dpart=' ~ (dd.part | urlencode)) if dd.part }}#drill">Quarter</a></span></div>
+      <div class="muted" style="margin:4px 0">Is an estimate fix working? Look for the line moving toward zero.</div>
+      <div class="chart-box" style="height:200px"><canvas id="trendChart"></canvas></div>
+      <script type="application/json" id="trendData">{{ {'points': dd.trend, 'green': greenMax} | json | safe }}</script>
+    </div>
+  </div>
+
+  <h3 style="margin-top:16px">Part Numbers It Appears On {% if dd.repeatParts %}<span class="chip chip-yellow" title="Off on {{ repeatMin }} or more jobs for the same part: the easiest wins, fix that part's quote or routing">{{ dd.repeatParts }} repeat</span>{% endif %}</h3>
+  <div class="table-wrap">
+  <table data-table="acc-drill" class="t t-fit acc-table" data-help-scope="accuracy">
+    <thead><tr>
+      <th>Part</th><th class="num">Jobs</th><th class="num">Jobs Off</th><th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">Attention Score</th><th>Repeat</th>
+    </tr></thead>
+    <tbody>
+    {% for p in dd.parts %}
+      <tr class="acc-row {{ 'sel' if dd.part == p.key }}" data-href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}&dpart={{ p.key | urlencode }}#jobs">
+        <td><a href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}&dpart={{ p.key | urlencode }}#jobs"><b>{{ p.label }}</b></a>{% if p.description %}<br><small class="muted">{{ p.description }}</small>{% endif %}</td>
+        <td class="num">{{ p.jobs }}</td><td class="num">{{ p.jobsOff }}</td>
+        <td class="num">{{ varcell(p.netDollars) }}</td><td class="num">{{ p.grossDollars | money0 }}</td>
+        <td class="num">{{ varcell(p.avgPct, 'pct') }}</td><td class="num">{{ p.attention | money0 }}</td>
+        <td>{% if p.repeat %}<span class="chip chip-yellow" title="Off on {{ p.jobsOff }} jobs for this part">Repeat</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h3 style="margin-top:16px" id="jobs">Contributing Jobs{% if dd.part %} for Part {{ dd.part }} <a class="btn btn-sm no-print" href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}#jobs">All Parts</a>{% endif %}
+    <small class="muted">({{ dd.jobCount }}{{ ', showing the biggest 200' if dd.jobCount > 200 }})</small></h3>
+  <div class="table-wrap">
+  <table data-table="acc-drill" class="t t-fit acc-table" data-help-scope="accuracy">
+    <thead><tr>
+      <th>Job</th><th>Part</th><th>Customer</th>
+      {% if dd.kind == 'op' %}<th class="num">Expected Hrs</th><th class="num">Actual Hrs</th><th class="num">Var Hrs</th>{% else %}<th class="num">Expected Qty</th><th class="num">Actual Qty</th><th class="num">Qty Var</th>{% endif %}
+      <th class="num">Var $</th><th class="num">Var %</th><th>Post-Mortem</th>
+    </tr></thead>
+    <tbody>
+    {% for j in dd.jobs %}
+      <tr>
+        <td class="nowrap"><a href="/jobs/{{ j.job }}">{{ j.job }}</a>{% if j.off %} <span class="chip chip-red" title="Flagged on this job">Off</span>{% endif %}</td>
+        <td>{{ j.part }}</td><td>{{ j.customer }}</td>
+        <td class="num">{{ (j.est | hrs) if dd.kind == 'op' else (j.est | qty) }}</td><td class="num">{{ (j.act | hrs) if dd.kind == 'op' else (j.act | qty) }}</td>
+        <td class="num">{{ varcell(j.var, 'hrs' if dd.kind == 'op' else 'raw') }}</td>
+        <td class="num">{{ varcell(j.varD) }}</td><td class="num">{{ varcell(j.pct, 'pct') }}</td>
+        <td>{{ pmcell(j.pm, j.job) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ operations -->
+<div class="card">
+  <div class="page-head" style="margin-bottom:8px">
+    <h2>Operations <small class="muted">by {{ 'Resource Group' if f.opBy == 'rg' else 'Op Code' }}</small></h2>
+    <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
+      <a class="btn btn-sm {{ 'btn-primary' if f.opBy == 'op' }}" href="/accuracy/ops?{{ base }}&opBy=op">Op Code</a>
+      <a class="btn btn-sm {{ 'btn-primary' if f.opBy == 'rg' }}" href="/accuracy/ops?{{ base }}&opBy=rg">Resource Group</a></span></div>
+  </div>
+  {{ lists(f,
+    { 'title': 'Top 10 Operations: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': opTable(d.ops.over, base, drillKey, 'Resource Group' if f.opBy == 'rg' else 'Operation'), 'foot': d.ops.overAll ~ ' over the estimate in all.' },
+    { 'title': 'Top 10 Operations: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': opTable(d.ops.under, base, drillKey, 'Resource Group' if f.opBy == 'rg' else 'Operation'), 'foot': d.ops.underAll ~ ' under the estimate in all.' }) }}
+  {% if d.ops.hidden %}<div class="muted acc-foot">{{ d.ops.hidden }} group{{ '' if d.ops.hidden == 1 else 's' }} with fewer than {{ f.minJobs }} jobs left out. Lower Minimum Jobs to see them.</div>{% endif %}
+</div>
+
+<!-- ============================================================ materials -->
+<div class="card">
+  <div class="page-head" style="margin-bottom:8px">
+    <h2>Materials <small class="muted">by {{ 'Material Class' if f.mtlBy == 'class' else 'Part Number' }}</small></h2>
+    <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
+      <a class="btn btn-sm {{ 'btn-primary' if f.mtlBy == 'part' }}" href="/accuracy/ops?{{ base }}&mtlBy=part">Part Number</a>
+      <a class="btn btn-sm {{ 'btn-primary' if f.mtlBy == 'class' }}" href="/accuracy/ops?{{ base }}&mtlBy=class">Material Class</a></span></div>
+  </div>
+  {{ lists(f,
+    { 'title': 'Top 10 Materials: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': mtlTable(d.mtls.over, base, drillKey, 'Material Class' if f.mtlBy == 'class' else 'Material'), 'foot': d.mtls.overAll ~ ' over the estimate in all.' },
+    { 'title': 'Top 10 Materials: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': mtlTable(d.mtls.under, base, drillKey, 'Material Class' if f.mtlBy == 'class' else 'Material'), 'foot': d.mtls.underAll ~ ' under the estimate in all.' }) }}
+  {% if d.mtls.hidden %}<div class="muted acc-foot">{{ d.mtls.hidden }} group{{ '' if d.mtls.hidden == 1 else 's' }} with fewer than {{ f.minJobs }} jobs left out. Lower Minimum Jobs to see them.</div>{% endif %}
+</div>
+
+<!-- ============================================================ chart -->
+<div class="card">
+  <h2>Biggest Net Variances</h2>
+  <div class="muted" style="margin-bottom:8px">The 15 biggest net $ variances across operations and materials. Red to the right = jobs over the estimate; blue to the left = jobs under the estimate. Click a bar to drill into it.</div>
+  {% if d.chart.length %}
+  <div class="chart-box" style="height:{{ 90 + d.chart.length * 26 }}px"><canvas id="divChart"></canvas></div>
+  <script type="application/json" id="divData">{{ {'items': d.chart, 'base': base} | json | safe }}</script>
+  {% else %}<div class="empty">Nothing to chart for these filters.</div>{% endif %}
+</div>
+
+<!-- ============================================================ unestimated -->
+<div class="card">
+  <h2>Unestimated Work <small class="muted">{{ d.unestimated.lines }} lines</small></h2>
+  <div class="muted" style="margin-bottom:8px">Work that was done or material that was used with <b>nothing estimated</b>. There is no variance % for these, so they are kept out of the lists above. An estimating gap worth seeing: it was not in the quote at all.</div>
+  {% if d.unestimated.lines %}
+  <div class="grid-2 acc-pair">
+    <div><h3>Operations</h3>
+      <table data-table="acc-unestimated" class="t t-fit" data-help-scope="accuracy">
+        <thead><tr><th data-help="The operation code, or the resource group if you grouped by that.">{{ 'Resource Group' if f.opBy == 'rg' else 'Operation' }}</th><th class="num">Jobs</th><th class="num">Actual Hrs</th><th class="num">Act $</th></tr></thead>
+        <tbody>{% for g in d.unestimated.ops %}<tr><td><b>{{ g.label }}</b></td><td class="num">{{ g.jobs }}</td><td class="num">{{ g.actHrs | hrs }}</td><td class="num">{{ g.actDollars | money0 }}</td></tr>
+        {% else %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+    <div><h3>Materials</h3>
+      <table data-table="acc-unestimated" class="t t-fit" data-help-scope="accuracy">
+        <thead><tr><th data-help="The material part number, or its class if you grouped by that.">{{ 'Material Class' if f.mtlBy == 'class' else 'Material' }}</th><th class="num">Jobs</th><th class="num">Issued Qty</th><th class="num">Act $</th></tr></thead>
+        <tbody>{% for g in d.unestimated.mtls %}<tr><td><b>{{ g.label }}</b></td><td class="num">{{ g.jobs }}</td><td class="num">{{ g.actQty | qty }}</td><td class="num">{{ g.actDollars | money0 }}</td></tr>
+        {% else %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+  </div>
+  {% else %}<div class="empty">No unestimated work in this period.</div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

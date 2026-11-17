@@ -36,9 +36,14 @@ export default async function reportRoutes(app) {
           .map((r) => r.name)
       : [];
     const settings = getSettings(db);
+    // Price and margin: frozen with the snapshot when there is one. A post-mortem started before this
+    // was tracked has none, so show today's figures for it and say so on the page.
+    const economics = snap.economics ?? live?.economics ?? null;
     return reply.page('report.njk', {
       pm,
       snap,
+      economics,
+      economicsLive: !!pm && !snap.economics && !!economics,
       ops,
       chart,
       causes,

@@ -1,5 +1,6 @@
 import { SESSION_COOKIE, SESSION_HOURS, countUsers, createSession, createUser, deleteSession, findUserByLogin, hashPassword, validatePassword, verifyPassword } from '../auth.js';
 import { UserError } from '../errors.js';
+import { COLUMN_HELP_PREF, PAGE_WIDTH_PREF, PAGE_WIDTHS, setPref } from '../prefs.js';
 
 // Used so a wrong username takes as long to reject as a wrong password (no user guessing by timing).
 const DUMMY_HASH = hashPassword('not-a-real-password');
@@ -70,6 +71,21 @@ export default async function authRoutes(app) {
 
   // -------------------------------------------------------- change own password
   app.get('/account', async (req, reply) => reply.page('account.njk', {}));
+
+  // "Column help": hover tips on table headings. Per person, so it follows them to any computer.
+  app.post('/account/column-help', async (req, reply) => {
+    const on = req.body?.columnHelp === '1';
+    setPref(db, req.user.id, COLUMN_HELP_PREF, on);
+    return reply.redirect('/account?ok=' + encodeURIComponent(`Column help turned ${on ? 'on' : 'off'}.`) + '#table-help');
+  });
+
+  // Page width: per person, so it follows them to any computer.
+  app.post('/account/page-width', async (req, reply) => {
+    const w = PAGE_WIDTHS.find((x) => x.id === req.body?.pageWidth);
+    if (!w) throw new UserError('Choose Full Width, Wide or Standard.');
+    setPref(db, req.user.id, PAGE_WIDTH_PREF, w.id);
+    return reply.redirect('/account?ok=' + encodeURIComponent(`Page width set to ${w.label}.`) + '#page-width');
+  });
 
   app.post('/account/password', async (req, reply) => {
     const { current = '', password = '', confirm = '' } = req.body ?? {};

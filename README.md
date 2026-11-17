@@ -31,12 +31,15 @@ Leave the black window open while people use the app. Close it (or press Ctrl+C)
 
 | Page | What it is for |
 |------|----------------|
-| **Dashboard** | Tiles for the last 30 days (change the dates at the top): jobs reviewed, % within tolerance, $ over, $ under, open post-mortems. A **Top 10 biggest $ misses** list and a chart of where the variance comes from. **Sync now** pulls fresh data. |
-| **Flagged Jobs** | Every flagged job, biggest $ impact first. Filter by dates, closed / in progress, flag colour, over / under, customer, part, op code, resource group, $ impact. Click a column title to sort; type in the boxes under the titles to filter further. **Export to Excel** downloads exactly what you see. |
-| **Job detail** (click a job) | Customer, part, qty, dates. **Operations**: estimated vs actual (setup, run, total, hours per piece), variance %, $, flag, complete or open. Click **Labour** on a row to see each clock-in. **Materials**: estimated vs actual quantity and dollars, usage vs cost-basis split, backflush marker. A bar chart of estimated vs actual hours. **Start post-mortem** and **Printable report** buttons. |
+| **Dashboard** | Tiles for the last 30 days (change the dates at the top): jobs reviewed, % within tolerance, $ over, $ under, open post-mortems. A **Top 10 biggest $ misses** table (use **Columns** to add or remove columns, drag a column title to move it, and **Save as my default**) and a chart of where the variance comes from: **hover a bar** to see the three biggest jobs behind it, and **click it** to open Flagged Jobs filtered to every job in that bar (red = over-runs, blue = under-runs, same dates as the dashboard). A **Matching Lines $** column shows what each job put into the bar, and the jobs add up to the number on the bar. **Sync now** pulls fresh data. |
+| **Ops & Materials** and **Customers** (next to Dashboard) | **Quote Accuracy**: which operations, materials and customers our estimates miss most, rolled up from the job results. Quick date buttons (Last 30 days to Last 12 months) and **Tier** / **Account Manager** filters on both pages. Sale price and actual margin per customer (closed priced jobs only), Top 10 **Jobs Over Estimates** (actual more than estimate; the default) and **Jobs Under Estimates** lists, chosen with a **Show** dropdown (over, under, both side by side, or both stacked so each table has the full width), net and gross variance side by side, a Needs Attention score, a diverging bar chart and (for customers) a how-often vs how-far quadrant chart. Click any row to drill down: operation or material, then part numbers (repeat offenders marked), then the jobs, each linking to its job or post-mortem; or one customer in full. Filters for dates, closed / in-progress, minimum jobs, $ / hours / % basis, outliers and internal jobs, and a CSV of the current table. See docs/QUOTE_ACCURACY.md for the definitions and assumptions. |
+| **Flagged Jobs** | Every flagged job, biggest $ impact first. Includes **Sale Price**, **Planned Margin**, **Actual Margin** and **Likely Cause** (price / set-up, overrun, on target) for each job, with a Likely Cause filter, so you can compare margins across jobs; the Excel export has the same, plus planned and actual cost. Filter by dates, closed / in progress, flag colour (choose **All jobs (flagged or not)** to see every job), include jobs with no sales order, over / under, customer, part, op code, resource group, $ impact. Click a column title to sort, drag it to move the column, and use **Columns** to show or hide columns (**Save as my default** remembers your columns, their order and the widths you dragged them to); type in the boxes under the titles to filter further. **Export to Excel** downloads exactly what you see. |
+| **Job Study** (tick jobs on Flagged Jobs, then **Study ticked jobs**, or **Study all** in the list) | Looks at several jobs together to find patterns. A plain-words **summary** (average planned and actual margin against the goal, and a readout for Estimating, Job Release and Shop); a **margin table** (simple average, median, revenue-weighted, margin dollars, labour hours); a **line graph** of planned vs actual margin for each job in close-date order; **Where to Look, Job by Job** (hours multiple, the price that would have earned the goal, and whether the loss points at estimating, job release plus shop, or the shop); each **operation across the jobs** (hours multiple, how many jobs ran over, share of the overrun, usually over or under); a job-by-operation colour **heat map**; **repeat parts** (the same part across jobs, and whether it lost money every run); the materials with the biggest dollar differences; and any jobs whose quantities disagree. **Print / Save as PDF** and **Export Study to Excel** are at the top. The split between estimating and job release is a rule of thumb: for a firm answer the app needs the quoted hours (the optional Quote vs Job BAQ, `docs/BAQ_SETUP.md` section 9). Drag the right edge of a column title on any Study table to resize it; **Save Column Widths** remembers your widths on any computer. |
+| **Job detail** (click a job) | Customer, part, qty, dates. **Operations**: estimated vs actual (setup, run, total, hours per piece), variance %, $, flag, complete or open. Click **Labour** on a row to see each clock-in. **Price and Margin (CAD)**: the sale price, the job's planned cost and its actual (final, or so far) cost, and the margin each leaves (cost is labour, material, the sub-assembly jobs it used, and subcontract; see `docs/QUOTE_ACCURACY.md`), with a plain-words note on whether the price, the job set-up or the shop floor is the likelier cause (needs the optional `Claude_PostMortem_JobRevenue` BAQ, see `docs/BAQ_SETUP.md` section 9; set the target margin in Settings). **Materials**: estimated vs actual quantity and dollars, usage vs cost-basis split, backflush marker. A bar chart of estimated vs actual hours. **Start post-mortem** and **Printable report** buttons. |
 | **Post-Mortems** | Reviews that have been started. Open one to set the owner and review date, pick root causes, add notes and action items, and move it along: Under Review, Root Cause Found, Actions Assigned, Closed (or Dismissed with a reason such as "data entry error"). |
 | **Open Actions** | Every action item from every job, soonest due first, with overdue ones marked. |
-| **Settings** (Admin) | Thresholds, minimums, per-op overrides, rate overrides, root cause list, users, Epicor connection test, sync. |
+| **Settings** (Admin) | A **Target Margin by Customer Tier** setting (A, B, C, D, New, with a default) that every margin is judged against. A **Margin % Colours** section (thresholds in points from each customer's own tier target, each with a colour, so the margins that are furthest below target stand out on the Customers pages and job tables). A **Customer Tiers and Account Managers** section (import the Customer Organization spreadsheet, or export it to edit; feeds the Tier and Account Manager columns on the Customers page). A **Jump To** menu on the left (it follows you down the page and lights up the section you are in) goes straight to any section. Thresholds, minimums, per-op overrides, rate overrides, root cause list, users, Epicor connection test, sync (the **Recent Syncs** log is a fold, closed until you open it). **Table Appearance**: pick any table from the dropdown and change its text size, minimum column width, and its row lines, column lines and cell borders (standard, on or off; thickness; colour), with a live preview. The change is the same for everyone, and **Back to standard** undoes it for that table. |
+| **Your Account** (click your name) | Change your password, choose light or dark for this browser, set the **Page Width** (Full Width by default; Wide or Standard leave room at the sides of a big screen), and turn **Column Help** on or off: with it on, hovering over a table's column title shows what the column means. It is on by default and is saved per person. |
 | **Printable report** | One page for the review meeting: numbers, chart, root causes, actions, notes. Press **Print / Save as PDF**. |
 
 When you **Start post-mortem**, the app freezes a **snapshot** of the job's numbers. If someone later
@@ -99,6 +102,14 @@ everything else; operator names and numbers are hidden from them (and from print
 The app keeps its **own copy** of the data (it never asks Epicor on every page view).
 - **Sync now** (Dashboard or Settings): open jobs plus anything closed since the last sync.
 - **Full re-sync** (Settings): re-reads everything in the sync window (default 12 months). You can pick a start date.
+- **Automatic sync** (Settings, "Automatic sync"): on by default for real Epicor data. Every day at the
+  chosen time (default 02:00, this PC's clock) it runs **Sync now** by itself; on **Sundays** it does a full
+  re-sync instead, which also picks up late corrections to older jobs. You can change the time, turn the
+  Sunday full re-sync off, or turn the whole thing off. It is not used in demo mode.
+  - The PC and the app (the black window) must be running at that time. If it was off, the sync runs
+    about a minute after the app starts.
+  - If a sync fails (for example Epicor is down) it retries every 30 minutes, up to 3 times, then waits for the next day.
+  - Automatic runs show as "automatic" in the sync log.
 - Every sync is logged in Settings (start, end, rows, errors).
 
 ### Connecting for real
@@ -160,6 +171,7 @@ run `allow_network.bat remove` as administrator and remove `HOST=` from `.env`.
 | "Node.js was not found" | Install Node.js LTS from nodejs.org, then run start.bat again. |
 | "Port 8080 is already in use" | The app may already be running (check the taskbar), or set `PORT=8081` in `.env`. |
 | Dashboard says "No job data yet" | Settings, Sync now. |
+| The automatic sync did not run | Check Settings, "Automatic sync" is ticked and the app was running at that time. The sync log shows each attempt; a failed one shows its reason. |
 | Sync fails with 401 / 403 / 404 | See the plain-English message in Settings. It usually means wrong credentials, BAQ not shared, or a typo in the BAQ ID (see BAQ_SETUP.md section 8.1). |
 | Sync says a BAQ is "missing required column" | A column name differs: fix it in `src/epicor/epicor_field_map.js`. |
 | Forgot the Admin password | Another Admin can reset it in Settings. If there is no other Admin, ask for help: it needs a one-line database change. |
@@ -185,13 +197,13 @@ Times shown in logs and notes are **UTC**.
 ```
 npm start          start the server            npm run backup    back up the database
 npm run dev        restart on file changes     npm run migrate   apply database updates
-npm test           run all unit and page tests (about 180)
+npm test           run all unit and page tests (about 200)
 ```
 
 - `src/engine/` - the variance rules (pure functions, heavily unit tested; start here to understand the maths)
 - `src/epicor/` - read-only Epicor client and the field map
 - `src/mock/` - the demo data (uses our op codes)
-- `src/sync/` - pulls BAQs into local tables; `src/metrics.js` recomputes variance after each sync
+- `src/sync/` - pulls BAQs into local tables (`scheduler.js` is the automatic daily sync); `src/metrics.js` recomputes variance after each sync
 - `src/routes/`, `src/views/` - pages; `public/` - small browser scripts and the stylesheet
 - `src/migrations/` - database changes (applied automatically at start)
 - `docs/BAQ_SETUP.md` - how to build the BAQs in Epicor

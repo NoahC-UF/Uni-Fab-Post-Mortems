@@ -8,6 +8,8 @@ import { secretValues } from './config.js';
 import { countUsers } from './auth.js';
 import { createSource } from './sync/sources.js';
 import { runSync } from './sync/sync.js';
+import { startScheduler } from './sync/scheduler.js';
+import { ensureMetricsCurrent } from './metrics.js';
 
 const cfg = loadConfig();
 const log = makeLogger(secretValues(cfg));
@@ -15,6 +17,8 @@ const log = makeLogger(secretValues(cfg));
 const db = openDb(cfg.dbPath);
 const applied = migrate(db);
 if (applied.length) log.info(`Database updated: ${applied.join(', ')}`);
+const rechecked = ensureMetricsCurrent(db);
+if (rechecked) log.info(`Re-checked ${rechecked} jobs after the update (adds price and margin figures).`);
 
 const app = await buildApp({ cfg, db, logger: log });
 
@@ -42,7 +46,11 @@ if (cfg.useMock && db.prepare('SELECT COUNT(*) n FROM jobs').get().n === 0) {
   log.info(result.ok ? 'Demo data loaded.' : `Demo data failed to load: ${result.error}`);
 }
 
+// Automatic sync (Settings > Automatic sync). Checks once a minute whether a sync is due.
+const scheduler = startScheduler({ db, cfg, startSync: app.ctx.startSync, log });
+
 const stop = async () => {
+  scheduler.stop();
   await app.close();
   db.close();
   process.exit(0);

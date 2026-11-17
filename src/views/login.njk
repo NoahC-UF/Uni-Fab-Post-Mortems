@@ -1,9 +1,10 @@
 {% extends "base.njk" %}
-{% block title %}Sign in{% endblock %}
+{% block title %}Sign In{% endblock %}
 {% block pageclass %}page-narrow{% endblock %}
 {% block content %}
 <div class="auth-card">
-  <h1>Uni-Fab <span class="accent">Post-Mortem</span></h1>
+  <div class="auth-logo"><img class="logo-for-light" src="/static/logo.png" alt="Uni-Fab" width="170" height="49"><img class="logo-for-dark" src="/static/logo-white.png" alt="Uni-Fab" width="170" height="49"></div>
+  <h1><span class="accent">Post-Mortem</span></h1>
   <p class="muted">Sign in to review job variances.</p>
   {% if error %}<div class="flash flash-err">{{ error }}</div>{% endif %}
   <form method="post" action="/login" class="stack">

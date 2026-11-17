@@ -22,10 +22,10 @@ The app only ever **reads** from Epicor (HTTP GET). It never creates, changes or
 3. [Before you start](#3-before-you-start)
 4. [Common building blocks used by every BAQ](#4-common-building-blocks-used-by-every-baq)
 5. [BAQ 1: Claude_PostMortem_JobHeader](#5-baq-1-claude_postmortem_jobheader)
-6. [BAQ 2: Claude_PostMortem_JobOperations](#6-baq-2-claude_postmortem_joboperations)
+6. [BAQ 2: Claude_PostMortem_JobOps](#6-baq-2-claude_postmortem_jobops)
 7. [BAQ 3, 4, 5: Labor, Materials, Material Transactions](#7-baqs-3-4-5)
 8. [Testing, and what to send me](#8-testing-and-what-to-send-me)
-9. [Optional BAQs (Phase 2 and 3), outline only](#9-optional-baqs-phase-2-and-3-outline-only)
+9. [Optional BAQs (the sale price one is built; Phase 2 and 3 are outlines)](#9-optional-baqs-phase-2-and-3-outline-only)
 
 ---
 
@@ -245,11 +245,11 @@ Updatable OFF, Shared ON, security per 3.2.
 
 ---
 
-## 6. BAQ 2: Claude_PostMortem_JobOperations
+## 6. BAQ 2: Claude_PostMortem_JobOps
 
 One row per job operation.
 
-- **Query ID:** `Claude_PostMortem_JobOperations`
+- **Query ID:** `Claude_PostMortem_JobOps` (Epicor limits Query IDs to 30 characters)
 - **Description:** `Post-mortem app: estimated vs actual hours per job operation`
 
 ### 6.1 Tables and joins
@@ -436,11 +436,11 @@ One row per job material line.
    empty on many lines, tell me. Estimated material dollars will need another source.
 3. `Part_ClassID` and `Part_ProdCode` should be filled for stocked parts.
 
-### 7.3 BAQ 5: Claude_PostMortem_MaterialTransactions
+### 7.3 BAQ 5: Claude_PostMortem_MtlTrans
 
 One row per material transaction. This is where **actual** material cost comes from (net of returns).
 
-- **Query ID:** `Claude_PostMortem_MaterialTransactions`
+- **Query ID:** `Claude_PostMortem_MtlTrans` (Epicor limits Query IDs to 30 characters)
 - **Description:** `Post-mortem app: material issues and returns per job material line`
 
 **Step 0 (one-time check): which TranTypes exist for jobs?**
@@ -541,6 +541,38 @@ Also tell me the answers to these checks, in a short list:
 ---
 
 ## 9. Optional BAQs (Phase 2 and 3), outline only
+
+### Claude_PostMortem_JobRevenue (built: sale price and margin)
+
+This one **is** built. It gives the job page its **Price and Margin** card (sale price in CAD, planned
+and actual cost, and the margins). It is optional: if it is not in Epicor, or it fails, the sync still
+works, the sync log says it was skipped, and the job page shows no price.
+
+**To add it:** BAQ Designer, Actions, **Import**, choose `docs\Claude_PostMortem_JobRevenue.baq`
+(same steps as the other imports), then **Analyze** (expect "Syntax is OK"), **Test** with a FromDate,
+and make sure **Shared** is ticked. Then press **Full re-sync** in the app.
+
+What it reads: one row per `JobProd` link between a job and a sales order release, joined to
+`OrderDtl` (line price) and `OrderHed` (currency). Same scope block and `FromDate` as the others.
+
+| Column | Used for |
+|--------|----------|
+| `JobProd_JobNum`, `JobProd_OrderNum`, `JobProd_OrderLine`, `JobProd_OrderRelNum` | which order line(s) the job is made for |
+| `JobProd_ProdQty` | how much of that line this job makes (a batched job makes a share of each line) |
+| `OrderDtl_OrderQty` | the whole line quantity, so the app can take the right share of the price |
+| `OrderDtl_ExtPriceDtl` | line price in the **company (base) currency**, which the app labels CAD |
+| `OrderDtl_DocExtPriceDtl`, `OrderHed_CurrencyCode` | the price and currency as the customer was quoted (information only) |
+
+Price = for each line, `ExtPriceDtl x ProdQty / OrderQty`, added up. Freight and other order-level
+charges are not included.
+
+**Please check (I could not see your Epicor):** these field names are the standard ones, but if the
+designer's field picker does not offer one of them (`OrderQty`, `ExtPriceDtl`, `DocExtPriceDtl`,
+`OrderRelNum`, `ProdQty`), tell me which and I will adjust. The app only needs `JobProd_JobNum`,
+`JobProd_OrderNum` and `OrderDtl_ExtPriceDtl`; if `ProdQty` or `OrderQty` is missing it counts the
+whole line and the job page says so.
+
+The remaining outlines below are not built yet.
 
 Do **not** build these yet. I will write the full step-by-step guide for each when we reach that
 phase, once the first five work. They also use `FromDate`, the same scope block (Section 4.2),

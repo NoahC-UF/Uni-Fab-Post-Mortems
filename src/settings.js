@@ -5,7 +5,22 @@ import { randomBytes } from 'node:crypto';
 import { DEFAULT_CONFIG } from './engine/thresholds.js';
 import { TRAN_TYPES } from './epicor/epicor_field_map.js';
 
+// Look and feel. Everyone gets the shop default set here; each person can override the
+// light/dark mode for their own browser on the Account page.
+export const THEMES = [
+  { id: 'unifab', label: 'Uni-Fab Default', note: 'Soft navy-slate with the Uni-Fab logo blue and striped table rows.', swatches: ['#1a2130', '#2f73bd', '#8ab4f8'] },
+  { id: 'original', label: 'Original', note: 'The first navy and orange look.', swatches: ['#14395b', '#1f5f99', '#e07b00'] },
+];
+export const MODES = [
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' },
+  { id: 'system', label: "Match the computer's setting" },
+];
+
 export const DEFAULT_SETTINGS = {
+  uiTheme: 'unifab',
+  uiMode: 'dark',
+  tableStyles: {}, // per-table text size, column width and lines (Settings > Table Appearance); see tableStyles.js
   greenMax: 0.1, // below 10% = green
   yellowMax: 0.25, // 10-25% = yellow, above = red
   minHours: 2,
@@ -13,6 +28,13 @@ export const DEFAULT_SETTINGS = {
   normalizeMaterialByQty: true,
   excludeNonOrderJobs: true,
   syncWindowMonths: 12,
+  targetMarginPct: 20, // the margin a job should earn; the job page compares the planned and actual margin to it. The default: used for any customer without a tier target
+  targetMarginByTier: {}, // { A: 30, B: 25, ... } a target for each customer tier (see targets.js); a tier not listed here uses targetMarginPct
+  marginBandsVsTarget: { bands: [], top: null }, // colours for the Margin % columns by how far a margin is from its own target, in points (see marginBands.js); none = the standard colouring
+  baseCurrency: 'CAD', // prices come from Epicor in the company (base) currency
+  autoSyncEnabled: true, // sync by itself once a day (not used in demo mode)
+  autoSyncTime: '02:00', // PC local time, 24-hour
+  autoSyncWeeklyFull: true, // Sundays do a full re-sync instead, to pick up late corrections to older jobs
   issueTranTypes: TRAN_TYPES.issue,
   returnTranTypes: TRAN_TYPES.return,
 };
@@ -29,6 +51,15 @@ export function getSettings(db) {
     }
   }
   return out;
+}
+
+/** The saved theme and mode, falling back to the defaults if the stored value is not a known one. */
+export function getAppearance(db) {
+  const s = getSettings(db);
+  return {
+    theme: THEMES.some((t) => t.id === s.uiTheme) ? s.uiTheme : DEFAULT_SETTINGS.uiTheme,
+    mode: MODES.some((m) => m.id === s.uiMode) ? s.uiMode : DEFAULT_SETTINGS.uiMode,
+  };
 }
 
 export function setSettings(db, patch) {

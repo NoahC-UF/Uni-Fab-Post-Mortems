@@ -1,5 +1,5 @@
 {% extends "base.njk" %}
-{% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons %}
+{% from "_macros.njk" import flagchip, statuschip, dirchip, varcell, csrfField, dqicons, marginBody %}
 {% set r = v.result %}
 {% set j = v.job %}
 {% block title %}Job {{ j.jobNum }}{% endblock %}
@@ -80,13 +80,31 @@
     <div class="sub">{{ r.flaggedLines }} flagged line{{ '' if r.flaggedLines == 1 else 's' }} ({{ r.redLines }} red, {{ r.yellowLines }} yellow)</div></div>
 </div>
 
+{% set e = v.economics %}
+<div class="card" id="margin">
+  <div class="page-head" style="margin-bottom:8px">
+    <h2>Price and Margin ({{ e.currency }})</h2>
+    <small class="muted">Target margin {{ e.target | pct }}{% if e.targetTier %} (tier {{ e.targetTier }}){% endif %}</small>
+  </div>
+  {{ marginBody(e) }}
+  {% if e.priceLines.length %}
+  <details class="no-print" style="margin-top:10px">
+    <summary class="muted" style="cursor:pointer">How the price was built ({{ e.priceLines.length }} sales order line{{ '' if e.priceLines.length == 1 else 's' }})</summary>
+    <table data-table="job-price" class="t" style="margin-top:6px;max-width:720px"><thead><tr><th>Order / Line</th><th class="num">Line Price</th><th class="num">Share Made by This Job</th><th class="num">Counted</th></tr></thead>
+      <tbody>{% for l in e.priceLines %}<tr><td>{{ l.orderNum }} / {{ l.orderLine }}</td><td class="num">{{ l.linePrice | money }}</td>
+        <td class="num">{{ l.share | pct }}{% if not l.shareKnown %} <small class="muted" title="Epicor did not say how much of the line this job makes, so the whole line is counted">(assumed)</small>{% endif %}</td>
+        <td class="num">{{ l.amount | money }}</td></tr>{% endfor %}</tbody></table>
+  </details>
+  {% endif %}
+</div>
+
 {% if not j.closed %}
 <div class="flash flash-info">This job is still in progress. Only <b>completed</b> operations count toward the variance above. Open operations are on the <b>Watchlist</b> tab.</div>
 {% endif %}
 {% if v.jobDq.length %}<div class="flash flash-warn"><b>Check the data:</b> {% for d in v.jobDq %}{{ d }} {% endfor %}</div>{% endif %}
 
 <div class="card">
-  <h2>Estimated vs actual hours by operation</h2>
+  <h2>Estimated vs Actual Hours by Operation</h2>
   <div class="chart-box"><canvas id="opChart"></canvas></div>
   <script type="application/json" id="chartData">{{ v.chart | json | safe }}</script>
 </div>
@@ -96,14 +114,14 @@
     <button :class="{ on: tab === 'ops' }" @click="tab = 'ops'">Operations</button>
     <button :class="{ on: tab === 'mtl' }" @click="tab = 'mtl'">Materials</button>
     {% if not j.closed %}<button :class="{ on: tab === 'watch' }" @click="tab = 'watch'">Watchlist ({{ r.watch.length }})</button>{% endif %}
-    {% if v.dq.length %}<button :class="{ on: tab === 'dq' }" @click="tab = 'dq'">Data quality ({{ v.dq.length }})</button>{% endif %}
+    {% if v.dq.length %}<button :class="{ on: tab === 'dq' }" @click="tab = 'dq'">Data Quality ({{ v.dq.length }})</button>{% endif %}
   </div>
 
   <!-- ============================================================ OPERATIONS -->
   <div x-show="tab === 'ops'" class="card">
     <div class="muted" style="margin-bottom:8px">Variance = actual - estimated. Setup and run are shown separately because they point to different fixes. When the quantity made differs from the run quantity, the flag uses <b>hours per piece</b>. Click <b>Labour</b> on a row to see who clocked what{% if not user.isAdmin %} (names are visible to Admins only){% endif %}.</div>
     <div class="table-wrap">
-    <table class="t">
+    <table data-table="job-ops" class="t">
       <thead>
         <tr>
           <th>Op</th><th>Resource</th><th>State</th>
@@ -137,7 +155,7 @@
           <tr x-show="open" x-cloak class="sub">
             <td colspan="15">
               {% if o.labor.length %}
-              <table class="t">
+              <table data-table="job-labour" class="t">
                 <thead><tr><th>Date</th><th>Type</th><th>In - out</th><th class="num">Hours</th><th class="num">Qty</th><th class="num">Scrap</th><th>Time status</th><th>Operator</th></tr></thead>
                 <tbody>
                 {% for l in o.labor %}
@@ -168,7 +186,7 @@
     <div class="muted" style="margin-bottom:8px">Actuals come from material transactions, <b>net of returns to stock</b>. The dollar variance is split into <b>usage</b> (we used more or less) and <b>cost basis</b> (the unit cost differed; with average costing this reflects the running average at issue, not necessarily the purchase price). Lines flag on whichever of quantity or dollars trips the threshold.</div>
     {% if r.materials.length %}
     <div class="table-wrap">
-    <table class="t">
+    <table data-table="job-mtl" class="t">
       <thead>
         <tr>
           <th>Material</th><th>Class</th>
@@ -219,7 +237,7 @@
   <div x-show="tab === 'watch'" x-cloak class="card">
     <div class="muted" style="margin-bottom:8px">Open operations: % of estimated hours used vs % of quantity complete, projected to the finish. Example: 90% of the hours used with 40% of the qty done projects to {{ 2.25 | hrs }}x the estimate.</div>
     {% if r.watch.length %}
-    <table class="t">
+    <table data-table="job-watch" class="t" data-help-scope="watch">
       <thead><tr><th>Op</th><th class="num">Est hrs</th><th class="num">Used hrs</th><th class="num">% hrs used</th><th class="num">% qty done</th><th class="num">Projected hrs</th><th class="num">Projected var</th><th class="num">Projected $</th><th>Status</th></tr></thead>
       <tbody>
       {% for w in r.watch %}
@@ -244,7 +262,7 @@
   {% if v.dq.length %}
   <div x-show="tab === 'dq'" x-cloak class="card">
     <div class="muted" style="margin-bottom:8px">Things that may mean the numbers are wrong (bad clock-ins, missing data) rather than the job actually going badly. Consider dismissing the job if the data cannot be trusted.</div>
-    <table class="t"><thead><tr><th>Where</th><th>Issue</th></tr></thead>
+    <table data-table="job-dq" class="t"><thead><tr><th>Where</th><th>Issue</th></tr></thead>
       <tbody>{% for d in v.dq %}<tr><td>{{ d.where }}</td><td>{{ DQ_LABELS[d.code] or d.code }}</td></tr>{% endfor %}</tbody></table>
   </div>
   {% endif %}

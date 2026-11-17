@@ -34,19 +34,21 @@ export function insertRows(db, table, rows, extra = {}) {
 }
 
 /** Replace everything we hold for the given jobs (children first, then the job rows). */
-export function replaceJobData(db, { jobs, ops, labor, mtls, trans }, syncedAt) {
+export function replaceJobData(db, { jobs, ops, labor, mtls, trans, revenue = null }, syncedAt) {
   const jobNums = jobs.map((j) => j.jobNum);
   const del = {
     ops: db.prepare('DELETE FROM job_operations WHERE job_num = ?'),
     labor: db.prepare('DELETE FROM labor_details WHERE job_num = ?'),
     mtls: db.prepare('DELETE FROM job_materials WHERE job_num = ?'),
     trans: db.prepare('DELETE FROM material_transactions WHERE job_num = ?'),
+    revenue: db.prepare('DELETE FROM job_revenue WHERE job_num = ?'),
   };
   for (const j of jobNums) {
     del.ops.run(j);
     del.labor.run(j);
     del.mtls.run(j);
     del.trans.run(j);
+    if (revenue) del.revenue.run(j); // revenue === null: that optional BAQ did not run, keep what we already hold
   }
   const counts = {
     jobs: insertRows(db, 'jobs', jobs, { synced_at: syncedAt }),
@@ -55,6 +57,7 @@ export function replaceJobData(db, { jobs, ops, labor, mtls, trans }, syncedAt) 
     materials: insertRows(db, 'job_materials', mtls),
     transactions: insertRows(db, 'material_transactions', trans),
   };
+  if (revenue) counts.revenue = insertRows(db, 'job_revenue', revenue);
   return counts;
 }
 
@@ -69,5 +72,6 @@ export function loadJobInputs(db, jobNum) {
     materials: all('SELECT * FROM job_materials WHERE job_num = ? ORDER BY assembly_seq, mtl_seq'),
     transactions: all('SELECT * FROM material_transactions WHERE job_num = ? ORDER BY tran_date, tran_num'),
     labor: all('SELECT * FROM labor_details WHERE job_num = ? ORDER BY clock_in_date, clock_in_time, labor_dtl_seq'),
+    revenue: all('SELECT * FROM job_revenue WHERE job_num = ? ORDER BY order_num, order_line, order_rel_num'),
   };
 }

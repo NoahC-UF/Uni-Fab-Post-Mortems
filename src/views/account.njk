@@ -2,16 +2,46 @@
 {% block title %}Account{% endblock %}
 {% block pageclass %}page-narrow{% endblock %}
 {% block content %}
-<h1>Your account</h1>
+<h1>Your Account</h1>
 <p class="muted">{{ user.displayName }} · {{ user.username }} · {{ user.role }}</p>
+<div class="card" id="appearance" x-data="{ pref: (function () { try { return localStorage.getItem('uf-mode') || 'default'; } catch (e) { return 'default'; } })() }">
+  <h2>Appearance</h2>
+  <div class="muted" style="margin-bottom:8px">Light or dark for <b>this browser only</b>. The shop default is {{ appearance.mode if appearance.mode != 'system' else "the computer's setting" }} and is set by an Admin in Settings.</div>
+  <div class="stack-sm">
+    {% for o in [['default', 'Use the shop default'], ['dark', 'Dark'], ['light', 'Light'], ['system', "Match this computer's setting"]] %}
+    <label class="check"><input type="radio" name="uf-mode" value="{{ o[0] }}" x-model="pref"
+      @change="try { if (pref === 'default') localStorage.removeItem('uf-mode'); else localStorage.setItem('uf-mode', pref); } catch (e) {} ufApplyMode(pref === 'default' ? null : pref)"> {{ o[1] }}</label>
+    {% endfor %}
+  </div>
+</div>
+<div class="card" id="page-width">
+  <h2>Page Width</h2>
+  <div class="muted" style="margin-bottom:8px">How wide the pages may grow on a large screen. Full Width shows the most columns at once. This is saved for you, on any computer you sign in from.</div>
+  <form method="post" action="/account/page-width" class="stack-sm">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    {% for w in pageWidths %}
+    <label class="check"><input type="radio" name="pageWidth" value="{{ w.id }}" {{ 'checked' if pageWidth == w.id }} onchange="this.form.submit()"> <b>{{ w.label }}</b> <span class="muted">{{ w.hint }}</span></label>
+    {% endfor %}
+    <noscript><button class="btn btn-primary" type="submit">Save</button></noscript>
+  </form>
+</div>
+<div class="card" id="table-help">
+  <h2>Column Help</h2>
+  <div class="muted" style="margin-bottom:8px">Hover over a table's column title to see what the column means, for example <b>$ Impact</b> or <b>Biggest Miss</b>. This is saved for you, on any computer you sign in from.</div>
+  <form method="post" action="/account/column-help" class="stack-sm">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <label class="check"><input type="checkbox" name="columnHelp" value="1" {{ 'checked' if columnHelp }} onchange="this.form.submit()"> Show a description when I hover over a column title</label>
+    <noscript><button class="btn btn-primary" type="submit">Save</button></noscript>
+  </form>
+</div>
 <div class="card">
-  <h2>Change password</h2>
+  <h2>Change Password</h2>
   {% if error %}<div class="flash flash-err">{{ error }}</div>{% endif %}
   <form method="post" action="/account/password" class="stack">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
-    <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
-    <label>New password <small class="muted">at least 8 characters</small><input type="password" name="password" autocomplete="new-password" required minlength="8"></label>
-    <label>Confirm new password <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label>
+    <label>Current Password <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>New Password <small class="muted">at least 8 characters</small><input type="password" name="password" autocomplete="new-password" required minlength="8"></label>
+    <label>Confirm New Password <input type="password" name="confirm" autocomplete="new-password" required minlength="8"></label>
     <button class="btn btn-primary" type="submit">Change password</button>
   </form>
 </div>

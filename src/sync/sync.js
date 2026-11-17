@@ -69,12 +69,19 @@ export async function runSync({ db, source, kind = 'incremental', now = new Date
     const fetched = {};
     const warnings = [];
     for (const key of SYNC_ORDER) {
-      const raw = await source.fetchBaq(key, { fromDate: from });
-      fetched[key] = raw.length;
-      const { rows, check } = mapRows(key, raw);
-      mapped[key] = rows;
-      if (check.missing.warn.length) {
-        warnings.push(`${BAQ_MAP[key].id}: missing columns ${check.missing.warn.map((m) => m.column).join(', ')}`);
+      try {
+        const raw = await source.fetchBaq(key, { fromDate: from });
+        fetched[key] = raw.length;
+        const { rows, check } = mapRows(key, raw);
+        mapped[key] = rows;
+        if (check.missing.warn.length) {
+          warnings.push(`${BAQ_MAP[key].id}: missing columns ${check.missing.warn.map((m) => m.column).join(', ')}`);
+        }
+      } catch (err) {
+        // An optional BAQ (the sale price one) must never stop the sync: say so, and carry on without it.
+        if (!BAQ_MAP[key].optional) throw err;
+        mapped[key] = null;
+        warnings.push(`${BAQ_MAP[key].id} was skipped, so sale price and margin are not updated: ${maskSecrets(err.message, secrets)}`);
       }
     }
 
@@ -92,7 +99,13 @@ export async function runSync({ db, source, kind = 'incremental', now = new Date
     const labor = dedupe(mapped.laborDetail.filter(inScope), (r) => `${r.laborHedSeq}|${r.laborDtlSeq}`);
     const mtls = dedupe(mapped.jobMaterials.filter(inScope), (r) => `${r.jobNum}|${r.assemblySeq}|${r.mtlSeq}`);
     const trans = dedupe(mapped.materialTransactions.filter(inScope), (r) => String(r.tranNum));
+    // sale price: only production links that point at a real sales order line; null = that BAQ did not run
+    const revenue = mapped.jobRevenue
+      ? dedupe(mapped.jobRevenue.filter((r) => inScope(r) && r.orderNum), (r) => `${r.jobNum}|${r.orderNum}|${r.orderLine ?? 0}|${r.orderRelNum}`)
+      : null;
+    if (revenue) revenue.rows = revenue.rows.map((r) => ({ ...r, orderLine: r.orderLine ?? 0 }));
 
+    // (sale price rows are not counted here: those without a sales order are dropped on purpose)
     const orphans = mapped.jobOperations.length + mapped.laborDetail.length + mapped.jobMaterials.length + mapped.materialTransactions.length
       - ops.rows.length - ops.dropped - labor.rows.length - labor.dropped - mtls.rows.length - mtls.dropped - trans.rows.length - trans.dropped;
     if (orphans > 0) warnings.push(`${orphans} detail row(s) belonged to jobs not in the header BAQ and were skipped`);
@@ -101,7 +114,7 @@ export async function runSync({ db, source, kind = 'incremental', now = new Date
 
     // ---- write
     const syncedAt = new Date().toISOString();
-    const counts = tx(db, () => replaceJobData(db, { jobs: header.rows, ops: ops.rows, labor: labor.rows, mtls: mtls.rows, trans: trans.rows }, syncedAt));
+    const counts = tx(db, () => replaceJobData(db, { jobs: header.rows, ops: ops.rows, labor: labor.rows, mtls: mtls.rows, trans: trans.rows, revenue: revenue?.rows ?? null }, syncedAt));
     const recomputed = recomputeJobs(db, header.rows.map((j) => j.jobNum), new Date());
 
     const summary = { fromDate: from, fetched, stored: counts, recomputed, warnings };

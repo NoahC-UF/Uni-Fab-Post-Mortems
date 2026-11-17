@@ -1,11 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-width="{{ pageWidth or 'full' }}" data-theme="{{ appearance.theme }}" data-mode="{{ 'dark' if appearance.mode == 'system' else appearance.mode }}" data-default-mode="{{ appearance.mode }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Post-Mortem{% endblock %} · Uni-Fab Post-Mortem</title>
+  <script>
+    // Applies light/dark before the page is drawn (no flash). A person's own choice (Account page) wins over the shop default.
+    window.ufApplyMode = function (pref) {
+      var d = document.documentElement;
+      if (pref !== 'dark' && pref !== 'light' && pref !== 'system') pref = d.getAttribute('data-default-mode');
+      if (pref === 'system') pref = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      d.setAttribute('data-mode', pref === 'light' ? 'light' : 'dark');
+    };
+    try { ufApplyMode(localStorage.getItem('uf-mode')); } catch (e) {}
+    // Printing is always on white paper, whatever the screen mode.
+    var ufPrevMode;
+    window.addEventListener('beforeprint', function () { ufPrevMode = document.documentElement.getAttribute('data-mode'); document.documentElement.setAttribute('data-mode', 'light'); });
+    window.addEventListener('afterprint', function () { if (ufPrevMode) document.documentElement.setAttribute('data-mode', ufPrevMode); });
+  </script>
   <link rel="stylesheet" href="/static/app.css">
+  {% if tableCss %}<style id="tableStyles">{{ tableCss | safe }}</style>{% endif %}
   {% block head %}{% endblock %}
+  {% if columnHelp %}<script type="application/json" id="columnHelpData">{{ columnHelpData | json | safe }}</script>
+  <script src="/static/column-help.js" defer></script>{% endif %}
   <script src="/vendor/htmx/htmx.min.js" defer></script>
   <script src="/vendor/alpine/cdn.min.js" defer></script>
 </head>
@@ -13,9 +30,11 @@
 {% if user %}
 <header class="topbar no-print">
   <div class="topbar-inner">
-    <a class="brand" href="/">Uni-Fab <span>Post-Mortem</span></a>
+    <a class="brand" href="/" title="Uni-Fab Post-Mortem"><img src="/static/logo-white.png" alt="Uni-Fab" width="116" height="34"><span>Post-Mortem</span></a>
     <nav class="nav">
       <a href="/" class="{{ 'on' if path == '/' }}">Dashboard</a>
+      <a href="/accuracy/ops" class="{{ 'on' if path.startsWith('/accuracy/ops') or path == '/accuracy' }}">Ops &amp; Materials</a>
+      <a href="/accuracy/customers" class="{{ 'on' if path.startsWith('/accuracy/customers') }}">Customers</a>
       <a href="/jobs" class="{{ 'on' if path == '/jobs' or path.startsWith('/jobs/') }}">Flagged Jobs</a>
       <a href="/postmortems" class="{{ 'on' if path.startsWith('/postmortems') }}">Post-Mortems</a>
       <a href="/actions" class="{{ 'on' if path == '/actions' }}">Open Actions</a>

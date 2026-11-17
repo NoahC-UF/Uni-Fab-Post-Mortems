@@ -1,0 +1,47 @@
+// Column descriptions for the Quote Accuracy pages (merged into the list in columnHelp.js).
+// All are in the "accuracy" scope: the tables on those pages say data-help-scope="accuracy".
+
+export const ACCURACY_HELP = {
+  'accuracy.tier': "The customer's tier level (A, B, C, D, NEW) from the Customer Organization list in Settings. A dash means the customer is not on that list.",
+  'accuracy.account manager': "Who looks after this account, from the Customer Organization list in Settings. \"Unassigned\" = on the list but nobody assigned yet; a dash = not on the list.",
+  'accuracy.jobs': 'How many jobs this group appears on (completed work only).',
+  'accuracy.est hrs': 'Hours the jobs should have taken for the quantity they made (the estimate, scaled to the quantity), added up.',
+  'accuracy.actual hrs': 'Hours actually booked, added up.',
+  'accuracy.var hrs': 'Actual minus expected hours. Positive means over the estimate (it took longer than estimated).',
+  'accuracy.net var $':
+    'The signed dollar variances added up (hours x labour + burden rates for operations; estimated unit cost for material). Positive = jobs over the estimate, negative = under. Overs and unders cancel here, so read it together with Gross.',
+  'accuracy.gross var $': "The SIZE of each line's variance added up. It shows the total inaccuracy even when overs and unders cancel out.",
+  'accuracy.avg var %': 'Total variance divided by total estimate for the group: (actual - estimate) / estimate. Hours for operations, dollars for material and customers.',
+  'accuracy.% jobs off':
+    "Share of the group's jobs with at least one line the app flagged: outside the green band and past the minimum hours or dollars set in Settings. (For customers: the share of jobs whose whole-job variance is off.)",
+  'accuracy.attention score':
+    "Gross $ variance x share of jobs off. A big-dollar item that is also often wrong scores highest. Shown in red when the group needs attention: its overall variance is outside the green band, or it is off more often than the shop's norm.",
+  'accuracy.exp qty': 'Quantity the jobs should have needed (the required quantity, scaled to the quantity made), added up.',
+  'accuracy.issued qty': 'Quantity actually issued to the jobs, net of returns to stock, added up.',
+  'accuracy.est $': 'Expected dollars: expected quantity x estimated unit cost.',
+  'accuracy.act $': 'Actual dollars: material issued net of returns, or labour hours x (labour + burden rate).',
+  'accuracy.sale price $': "What the customer paid: the sales order lines these jobs were made for (the share each job makes), for CLOSED jobs that have a price. In-progress jobs are left out because their cost is only so far.",
+  'accuracy.margin $': "Actual margin: sale price less the actual cost of the job (labour with burden, material, sub-assemblies and subcontract), added up over the customer's priced closed jobs. This is the real money made or lost, even when the job ran over hours or material. Freight and overhead are not in the cost.",
+  'accuracy.margin %': "Actual margin divided by sale price. Green = meets the target margin in Settings, red = a loss. Hover for the planned margin.",
+  'accuracy.total est $': "What the jobs were set up to cost: planned labour (with burden) and material, plus the planned cost of the sub-assembly jobs they use and subcontract (counted as planned, since no estimate is kept). The same planned cost as the job page and the margin.",
+  'accuracy.total act $': "What the jobs really cost: labour with burden, material (inspected purchases at real cost), the sub-assembly jobs they used, subcontract and unestimated work. The same cost the margin uses: Sale Price less Total Act $ is the margin. Jobs in progress count only lines compared so far.",
+  'accuracy.other var $': "The part of Net Var $ that is not in the Labour or Material columns: sub-assembly jobs that cost more or less than planned, inspection material at its real cost, and work with no estimate. Labour + Material + Other = Net Var $.",
+  'accuracy.labour var $': 'Labour variance in dollars: hours x (labour + burden rate), the same cost basis as the Dashboard. Positive means over the estimate.',
+  'accuracy.material var $': 'Material variance in dollars: actual cost less expected cost. Positive means over the estimate.',
+  'accuracy.target %': "The target margin that applies to this customer: the one set for its tier in Settings, or the default target when its tier has none (or it is not on the customer list). Hover for which. Margin vs Target $ is measured against it.",
+  'accuracy.margin vs target $': "Margin $ less what the target margin (Settings) would have earned on the same sale price. Red = dollars short of target, green = dollars above it. Weighs size and percentage together, so a tiny customer at a terrible % and a huge one at a slightly low % both show what they really cost.",
+  'accuracy.vs shop': "This customer's share of jobs off minus the whole shop's, in percentage points. Positive means worse than normal.",
+  'accuracy.part of the job': 'Setup and run (production) are kept apart because the fix is different for each.',
+  'accuracy.expected hrs': 'Hours the jobs should have taken for the quantity they made, added up.',
+  'accuracy.var %': 'Variance as a % of what was expected: (actual - expected) / expected.',
+  'accuracy.var $': 'Dollars: actual minus expected. Positive = over the estimate (cost more), negative = under the estimate (cost less).',
+  'accuracy.kind of variance': 'Usage = we used more or less than planned. Price = it cost more or less per unit than planned.',
+  'accuracy.what it means': 'How the figure is worked out.',
+  'accuracy.jobs off': 'On how many of the jobs this was flagged (outside the green band and past the minimum hours / dollars).',
+  'accuracy.repeat': "Off on 3 or more jobs for the same part: the easiest wins. Fix that part's quote or routing.",
+  'accuracy.expected qty': 'Quantity the job should have needed.',
+  'accuracy.actual qty': 'Quantity actually issued, net of returns.',
+  'accuracy.qty var': 'Issued minus expected quantity. Positive means more was used.',
+  'accuracy.root cause': "A root cause picked in a post-mortem for one of this customer's jobs.",
+  'accuracy.post-mortems': "How many of this customer's post-mortems picked it.",
+};

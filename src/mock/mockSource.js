@@ -37,6 +37,8 @@ export class MockSource {
         return d.mtls.filter((m) => scope.has(m.jobNum)).map((m) => toRawRow(key, stamp(m)));
       case 'materialTransactions':
         return d.trans.filter((t) => scope.has(t.jobNum)).map((t) => toRawRow(key, stamp(t)));
+      case 'jobRevenue':
+        return d.revenue.filter((r) => scope.has(r.jobNum)).map((r) => toRawRow(key, r));
       default:
         throw new Error(`Unknown BAQ key: ${key}`);
     }

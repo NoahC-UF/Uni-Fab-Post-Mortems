@@ -1,7 +1,11 @@
 // Builds everything the Job Detail page and the printable report need for one job.
 
 import { evaluateJob } from './engine/job.js';
-import { getEngineConfig } from './settings.js';
+import { getEngineConfig, getSettings } from './settings.js';
+import { computeEconomics } from './economics.js';
+import { loadExtraCosts } from './extraCosts.js';
+import { targetContext, targetFor } from './targets.js';
+import { quantityNote } from './quantity.js';
 import { loadJobInputs } from './staging.js';
 
 const key = (a, o) => `${a}-${o}`;
@@ -73,10 +77,16 @@ export function buildJobView(db, jobNum, { isAdmin = false, config = null } = {}
   for (const m of result.materials) for (const d of m.dq) dq.push({ where: `Material ${m.partNum}`, code: d });
   const jobDq = [];
   if (inputs.job.closed && ops.some((o) => o.countReason === 'skipped')) jobDq.push('Job is closed but has operations that were never completed.');
+  const qNote = quantityNote(result);
+  if (qNote) jobDq.push(qNote.text);
   const stillClocked = inputs.labor.filter((l) => l.activeTrans).length;
   if (stillClocked) jobDq.push(`${stillClocked} labour transaction(s) are still clocked in.`);
   const longTx = inputs.labor.filter((l) => Number(l.laborHrs) > 12).length;
   if (longTx) jobDq.push(`${longTx} labour transaction(s) are longer than 12 hours.`);
 
-  return { job: inputs.job, result, ops, assemblies, chart, dq, jobDq, multiLevel: seqs.length > 1, subcontractCount: ops.filter((o) => o.subcontract).length };
+  const settings = getSettings(db);
+  const tgt = targetFor(targetContext(db, settings), { name: inputs.job.custName, id: inputs.job.custId }); // this customer's tier target
+  const economics = computeEconomics(result, inputs.revenue, { targetMarginPct: tgt.pct, tier: tgt.tier, baseCurrency: settings.baseCurrency, extra: loadExtraCosts(db, inputs.job.jobNum, { config: config ?? getEngineConfig(db) }) });
+
+  return { job: inputs.job, result, ops, assemblies, chart, dq, jobDq, economics, multiLevel: seqs.length > 1, subcontractCount: ops.filter((o) => o.subcontract).length };
 }

@@ -189,3 +189,74 @@ export function flagLineRows(result) {
   }
   return rows;
 }
+
+/**
+ * Flat rows for the line_results table: EVERY operation and material line (not just the flagged ones), with the numbers
+ * the Quote Accuracy pages add up. Hours of an operation are the hours the job should have taken for the quantity it made
+ * (the same "expected" the flags use); the setup / run split is scaled the same way so the two always add up to the total.
+ */
+export function lineResultRows(result) {
+  const rows = [];
+  for (const o of result.ops) {
+    const scale = o.est.total > 0 ? o.expectedHours / o.est.total : 1;
+    rows.push({
+      kind: 'op',
+      assemblySeq: o.assemblySeq,
+      seq: o.oprSeq,
+      counted: o.counts ? 1 : 0,
+      opCode: o.opCode,
+      resourceGrpId: o.resourceGrpId,
+      partNum: null,
+      description: o.opDesc,
+      classId: null,
+      unplanned: o.unplanned ? 1 : 0,
+      flag: o.flag ?? 'green',
+      expHours: o.expectedHours,
+      actHours: o.act.total,
+      expSetup: r4(o.est.setup * scale),
+      actSetup: o.act.setup,
+      expRun: r4(o.est.run * scale),
+      actRun: o.act.run,
+      varHours: o.varHours,
+      expQty: null,
+      actQty: null,
+      estDollars: o.expectedDollars,
+      actDollars: o.actDollars,
+      varDollars: o.varDollars,
+      usageVar: null,
+      priceVar: null,
+      varPct: o.varPct,
+    });
+  }
+  for (const m of result.materials) {
+    rows.push({
+      kind: 'material',
+      assemblySeq: m.assemblySeq,
+      seq: m.mtlSeq,
+      counted: m.pending ? 0 : 1,
+      opCode: null,
+      resourceGrpId: null,
+      partNum: m.partNum,
+      description: m.description,
+      classId: m.classId,
+      unplanned: m.unplanned ? 1 : 0,
+      flag: m.flag ?? 'green',
+      expHours: null,
+      actHours: null,
+      expSetup: null,
+      actSetup: null,
+      expRun: null,
+      actRun: null,
+      varHours: null,
+      expQty: m.expectedQty,
+      actQty: m.actualQty,
+      estDollars: m.estDollars,
+      actDollars: m.actDollars,
+      varDollars: m.dollarVar,
+      usageVar: m.usageVar,
+      priceVar: m.priceVar,
+      varPct: m.dollarPct ?? m.qtyPct,
+    });
+  }
+  return rows;
+}

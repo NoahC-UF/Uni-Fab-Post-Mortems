@@ -9,6 +9,7 @@ import { UserError, notFound } from './errors.js';
 import { evaluateStoredJob } from './metrics.js';
 import { getSettings } from './settings.js';
 import { diffSnapshot } from './engine/job.js';
+import { loadEconomics } from './economics.js';
 
 export const STATUSES = ['under_review', 'root_cause_found', 'actions_assigned', 'closed', 'dismissed'];
 export const STEPS = ['under_review', 'root_cause_found', 'actions_assigned', 'closed'];
@@ -27,6 +28,7 @@ export function createPostMortem(db, { jobNum, userId, status = 'under_review', 
   const s = getSettings(db);
   const snapshot = {
     ...live,
+    economics: loadEconomics(db, jobNum, live), // price and margins are frozen with the rest, so the report matches what the team saw
     meta: {
       takenAt: iso(now),
       settings: { greenMax: s.greenMax, yellowMax: s.yellowMax, minHours: s.minHours, minDollars: s.minDollars },
@@ -47,7 +49,7 @@ export function retakeSnapshot(db, id, userId, now = new Date()) {
   const live = evaluateStoredJob(db, pm.job_num);
   if (!live) throw notFound('That job');
   const s = getSettings(db);
-  const snapshot = { ...live, meta: { takenAt: iso(now), settings: { greenMax: s.greenMax, yellowMax: s.yellowMax, minHours: s.minHours, minDollars: s.minDollars } } };
+  const snapshot = { ...live, economics: loadEconomics(db, pm.job_num, live), meta: { takenAt: iso(now), settings: { greenMax: s.greenMax, yellowMax: s.yellowMax, minHours: s.minHours, minDollars: s.minDollars } } };
   tx(db, () => {
     db.prepare('UPDATE post_mortems SET snapshot_json = ?, snapshot_fingerprint = ?, snapshot_taken_at = ?, updated_at = datetime(\'now\') WHERE id = ?').run(
       JSON.stringify(snapshot), live.fingerprint, iso(now), id,

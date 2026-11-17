@@ -1,4 +1,5 @@
 {% extends "base.njk" %}
+{% from "_macros.njk" import colmenu %}
 {% block title %}Flagged Jobs{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/vendor/tabulator/css/tabulator_simple.min.css">
@@ -8,16 +9,24 @@
 <div class="page-head">
   <div>
     <h1>Flagged Jobs</h1>
-    <div class="muted">{{ total }} job{{ '' if total == 1 else 's' }} match. Ranked by total $ impact (labour + material), biggest first.</div>
+    <div class="muted">{{ total }} job{{ '' if total == 1 else 's' }} match. {% if lineFilter %}Ranked by the dollars each put into the bar you clicked, biggest first.{% else %}Ranked by total $ impact (labour + material), biggest first.{% endif %}</div>
   </div>
   <a class="btn" href="/jobs/export.xlsx{{ '?' + exportQuery if exportQuery }}">&#8681; Export to Excel</a>
 </div>
 
+{% if lineFilter %}
+<div class="flash flash-info line-filter">
+  Showing the jobs behind the <b>{{ lineFilter.op }} {{ 'over-runs' if lineFilter.dir == 'over' else 'under-runs' }}</b> bar on the Dashboard chart:
+  flagged <b>{{ lineFilter.op }}</b> lines that ran {{ lineFilter.dir }}, {{ f.from }} to {{ f.to }}. Together they make <b>{{ lineFilter.total | money0 }}</b>, shown in the <b>Matching Lines $</b> column.
+  <a class="btn btn-sm no-print" href="/jobs?from={{ f.from }}&to={{ f.to }}">Show all flagged jobs</a>
+</div>
+{% endif %}
 <form method="get" action="/jobs" class="card no-print">
+  {% if lineFilter %}<input type="hidden" name="lineOp" value="{{ f.lineOp }}"><input type="hidden" name="lineDir" value="{{ f.lineDir }}">{% endif %}
   <div class="filters">
-    <label>Closed from <input type="date" name="from" value="{{ f.from }}"></label>
-    <label>Closed to <input type="date" name="to" value="{{ f.to }}"></label>
-    <label>Job status
+    <label>Closed From <input type="date" name="from" value="{{ f.from }}"></label>
+    <label>Closed To <input type="date" name="to" value="{{ f.to }}"></label>
+    <label>Job Status
       <select name="status">
         <option value="all" {{ 'selected' if f.status == 'all' }}>Closed + in progress</option>
         <option value="closed" {{ 'selected' if f.status == 'closed' }}>Closed only</option>
@@ -30,14 +39,24 @@
         <option value="red" {{ 'selected' if f.flag == 'red' }}>Red only</option>
         <option value="yellow" {{ 'selected' if f.flag == 'yellow' }}>Yellow only</option>
         <option value="green" {{ 'selected' if f.flag == 'green' }}>Within tolerance</option>
-        <option value="all" {{ 'selected' if f.flag == 'all' }}>All jobs</option>
+        <option value="all" {{ 'selected' if f.flag == 'all' }}>All jobs (flagged or not)</option>
       </select>
     </label>
-    <label>Over / under
+    <label>Over / Under
       <select name="direction">
         <option value="">Both</option>
         <option value="over" {{ 'selected' if f.direction == 'over' }}>Over estimate</option>
         <option value="under" {{ 'selected' if f.direction == 'under' }}>Under estimate</option>
+      </select>
+    </label>
+    <label>Likely Cause (Margin)
+      <select name="cause" title="Based on the Price and Margin card: was the price below the job's own plan, or did the job overrun its plan?">
+        <option value="">Any</option>
+        <option value="below" {{ 'selected' if f.cause == 'below' }}>Below target margin (either)</option>
+        <option value="price-vs-plan" {{ 'selected' if f.cause == 'price-vs-plan' }}>Price / set-up</option>
+        <option value="overrun" {{ 'selected' if f.cause == 'overrun' }}>Overrun</option>
+        <option value="ok" {{ 'selected' if f.cause == 'ok' }}>On target</option>
+        <option value="no-price" {{ 'selected' if f.cause == 'no-price' }}>No price</option>
       </select>
     </label>
     <label>Customer
@@ -46,22 +65,26 @@
         {% for c in options.customers %}<option value="{{ c.id }}" {{ 'selected' if f.cust == c.id }}>{{ c.name }}</option>{% endfor %}
       </select>
     </label>
-    <label>Op code (flagged)
-      <select name="op">
+    <div class="field">
+      <div class="field-head"><label for="f_op">Op Code</label>
+        <label class="check mini" title="Ticked: only jobs where this operation was flagged. Unticked: any job that has this operation, flagged or not."><input type="hidden" name="opFlagged" value="0"><input type="checkbox" name="opFlagged" value="1" {{ 'checked' if f.opFlagged }}> Flagged</label></div>
+      <select name="op" id="f_op">
         <option value="">Any</option>
         {% for o in options.opCodes %}<option value="{{ o }}" {{ 'selected' if f.op == o }}>{{ o }}</option>{% endfor %}
       </select>
-    </label>
-    <label>Resource group (flagged)
-      <select name="rg">
+    </div>
+    <div class="field">
+      <div class="field-head"><label for="f_rg">Resource Group</label>
+        <label class="check mini" title="Ticked: only jobs where this resource group had a flagged operation. Unticked: any job that uses this resource group, flagged or not."><input type="hidden" name="rgFlagged" value="0"><input type="checkbox" name="rgFlagged" value="1" {{ 'checked' if f.rgFlagged }}> Flagged</label></div>
+      <select name="rg" id="f_rg">
         <option value="">Any</option>
         {% for o in options.resourceGroups %}<option value="{{ o }}" {{ 'selected' if f.rg == o }}>{{ o }}</option>{% endfor %}
       </select>
-    </label>
-    <label>Part number <input name="part" value="{{ f.part }}" placeholder="contains..."></label>
-    <label>Job number <input name="job" value="{{ f.job }}" placeholder="contains..."></label>
-    <label>Min $ impact <input type="number" min="0" step="50" name="minImpact" value="{{ f.minImpact or '' }}"></label>
-    <label>Post-mortem
+    </div>
+    <label>Part Number <input name="part" value="{{ f.part }}" placeholder="contains..."></label>
+    <label>Job Number <input name="job" value="{{ f.job }}" placeholder="contains..."></label>
+    <label>Min $ Impact <input type="number" min="0" step="50" name="minImpact" value="{{ f.minImpact or '' }}"></label>
+    <label>Post-Mortem
       <select name="pm">
         <option value="">Any</option>
         <option value="none" {{ 'selected' if f.pm == 'none' }}>Not started</option>
@@ -69,22 +92,28 @@
         <option value="closed" {{ 'selected' if f.pm == 'closed' }}>Closed / dismissed</option>
       </select>
     </label>
-    <div class="row"><button class="btn btn-primary" type="submit">Apply filters</button> <a class="btn" href="/jobs">Reset</a></div>
+    <label class="check noorder-check" title="Settings can leave out jobs that are not linked to a sales order (stock, maintenance, internal). Tick this to include them here."><input type="checkbox" name="noOrder" value="1" {{ 'checked' if f.noOrder }}> Include jobs with no sales order</label>
+    <div class="filter-actions"><a class="btn" href="/jobs">Reset</a><button class="btn btn-primary" type="submit">Apply filters</button></div>
   </div>
 </form>
 
 {% if rows.length %}
 <div class="row no-print" style="margin-bottom:8px">
-  <details>
-    <summary class="btn btn-sm">Columns</summary>
-    <div class="card" id="colPicker" style="position:absolute;z-index:5;margin-top:4px;min-width:200px"></div>
-  </details>
-  <span class="muted">Click a column title to sort. Use the boxes under the titles to filter this table further.</span>
+  {{ colmenu() }}
+  <span class="muted">Click a column title to sort, or drag it to move the column. Use the boxes under the titles to filter this table further.</span>
+  <span class="study-bar">
+    <a class="btn btn-sm btn-primary disabled" id="studySelected" href="/study" aria-disabled="true" title="Tick jobs in the first column, then study them side by side">Study ticked jobs (<span id="studyCount">0</span>)</a>
+    <a class="btn btn-sm" id="studyAll" href="/study{{ '?' + exportQuery if exportQuery }}" title="Study every job the filters above matched">Study all {{ total }} in this list</a>
+  </span>
 </div>
-<div id="jobsTable"></div>
+<div id="jobsTable" data-table="jobs-grid" data-help-scope="grid"></div>
 <script type="application/json" id="jobRows">{{ rows | json | safe }}</script>
+<script type="application/json" id="gridMeta">{{ {'target': targetMarginPct / 100, 'lineFilter': lineFilter != null, 'marginBands': marginBands} | json | safe }}</script>
+<script type="application/json" id="colPrefs">{{ savedColumns | json | safe }}</script>
 {% else %}
-<div class="card"><div class="empty">No jobs match these filters. Try a wider date range, or set Flag to "All jobs".</div></div>
+<div class="card"><div class="empty">No jobs match these filters.<br>
+  A job can be missing because of: the <b>Closed From / To</b> dates; <b>Flag</b> (choose "All jobs (flagged or not)"); <b>Over / Under</b>; <b>Likely Cause</b>;
+  <b>Include jobs with no sales order</b> (Settings leaves those out by default); or it is older than the sync window (Settings).</div></div>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="/static/jobs-table.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/job-columns.js" defer></script><script src="/static/jobs-table.js" defer></script>{% endblock %}

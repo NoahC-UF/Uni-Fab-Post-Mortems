@@ -4,10 +4,28 @@
 {% block content %}
 <div class="page-head"><div><h1>Settings</h1><div class="muted">Admin only. Changes to thresholds, rates and minimums re-check every job straight away.</div></div></div>
 
+<div class="settings-layout">
+<nav class="settings-nav no-print" id="settingsNav" aria-label="Jump to a settings section">
+  <b>Jump To</b>
+  <a href="#sync-card">Epicor Connection and Sync</a>
+  <a href="#auto-sync" class="sub">Automatic Sync</a>
+  <a href="#recent-syncs" class="sub">Recent Syncs</a>
+  <a href="#appearance">Appearance</a>
+  <a href="#table-appearance">Table Appearance</a>
+  <a href="#customer-org">Customer Tiers and Account Managers</a>
+  <a href="#thresholds">Thresholds and Rules</a>
+  <a href="#overrides" class="sub">Overrides by Op Code or Resource Group</a>
+  <a href="#margin-colours">Margin % Colours</a>
+  <a href="#rates">Labour and Burden Rates</a>
+  <a href="#causes">Root Cause List</a>
+  <a href="#users">Users</a>
+</nav>
+<div class="settings-main">
+
 <!-- ================================================================ DATA SOURCE -->
 <div class="card" id="sync-card"
      {% if running %}hx-get="/settings" hx-trigger="every 3s" hx-select="#sync-card" hx-target="#sync-card" hx-swap="outerHTML"{% endif %}>
-  <h2>Epicor connection and sync</h2>
+  <h2>Epicor Connection and Sync</h2>
   <div class="kv" style="margin-bottom:12px">
     <div><span>Data source</span><b>{% if epicor.mock %}Demo data (USE_MOCK_DATA=true){% else %}Epicor (live BAQs){% endif %}</b></div>
     <div><span>Last sync</span><b>{% if lastSync %}{{ lastSync.started_at | dateTime }} UTC · {{ lastSync.status }}{% else %}never{% endif %}</b></div>
@@ -17,39 +35,175 @@
   <div class="row">
     <form method="post" action="/sync" class="inline">{{ csrfField(csrf) }}<input type="hidden" name="back" value="/settings"><button class="btn btn-primary" type="submit" {{ 'disabled' if running }}>Sync now</button></form>
     <form method="post" action="/settings/sync-full" class="form-inline">{{ csrfField(csrf) }}
-      <label>Full re-sync from <input type="date" name="from" title="Leave blank to use the sync window below"></label>
+      <label>Full Re-Sync From <input type="date" name="from" title="Leave blank to use the sync window below"></label>
       <button class="btn" type="submit" {{ 'disabled' if running }}>Full re-sync</button></form>
     <form method="post" action="/settings/test-connection" class="inline">{{ csrfField(csrf) }}<button class="btn" type="submit">Test connection</button></form>
     {% if epicor.mock %}<form method="post" action="/settings/mock-change" class="inline">{{ csrfField(csrf) }}<button class="btn" type="submit" title="Demo only">Demo: pretend Epicor data changed</button></form>{% endif %}
   </div>
   <p class="muted">"Sync now" pulls open jobs plus anything closed since the last sync. "Full re-sync" re-reads everything in the sync window. "Test connection" shows pass or fail only, never your credentials. The app only ever reads from Epicor (GET requests).</p>
   <p class="muted">BAQs used: {{ epicor.baqs | join(', ') }}</p>
+
+  <h3 id="auto-sync" style="margin-top:18px">Automatic Sync</h3>
+  <form method="post" action="/settings/auto-sync" class="form-inline">{{ csrfField(csrf) }}
+    <label class="check"><input type="checkbox" name="autoSyncEnabled" {{ 'checked' if auto.enabled }}> Sync by itself every day</label>
+    <label>Time of Day <input type="time" name="autoSyncTime" value="{{ auto.time }}" required style="width:auto"></label>
+    <label class="check"><input type="checkbox" name="autoSyncWeeklyFull" {{ 'checked' if auto.weeklyFull }}> Sundays: full re-sync</label>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <p class="muted">
+    {% if epicor.mock %}Not used in demo mode (the demo data never changes).
+    {% elif auto.next %}Next automatic sync: <b>{{ auto.next }}</b> (this PC's clock; the sync log below is in UTC).
+    {% else %}Automatic sync is off. Use Sync now, or turn it on above.{% endif %}
+    The PC and this app must be running at that time. If it was off, the sync runs shortly after the app starts. A failed attempt is retried every 30 minutes, up to 3 times.
+    The Sunday full re-sync picks up late corrections to older jobs that a daily sync would miss.
+  </p>
   {% if syncLog.length %}
-  <h3>Recent syncs</h3>
-  <div class="table-wrap"><table class="t">
-    <thead><tr><th>Started (UTC)</th><th>Kind</th><th>Source</th><th>Status</th><th>Rows</th><th>Notes</th></tr></thead>
+  <details class="fold" id="recent-syncs">
+    <summary>Recent Syncs <small class="muted">({{ syncLog.length }}, newest first)</small></summary>
+  <div class="table-wrap"><table data-table="settings" class="t" data-help-scope="sync">
+    <thead><tr><th>Started (UTC)</th><th>Kind</th><th>Source</th><th>By</th><th>Status</th><th>Rows</th><th>Notes</th></tr></thead>
     <tbody>
     {% for l in syncLog %}
-      <tr><td class="nowrap">{{ l.started_at | dateTime }}</td><td>{{ l.kind }}</td><td>{{ l.source }}</td>
+      <tr><td class="nowrap">{{ l.started_at | dateTime }}</td><td>{{ l.kind }}</td><td>{{ l.source }}</td><td>{{ 'automatic' if l.started_by == 'automatic schedule' else l.started_by }}</td>
         <td><span class="chip {{ 'chip-green' if l.status == 'ok' else ('chip-red' if l.status == 'error' else 'chip-blue') }}">{{ l.status }}</span></td>
         <td>{% if l.rows and l.rows.stored %}{{ l.rows.stored.jobs }} jobs, {{ l.rows.stored.operations }} ops, {{ l.rows.stored.labor }} labour, {{ l.rows.stored.materials }} mtl, {{ l.rows.stored.transactions }} trans{% endif %}</td>
         <td><small>{{ l.error if l.error }}{% if l.rows and l.rows.warnings %}{% for w in l.rows.warnings %}{{ w }}{{ '; ' if not loop.last }}{% endfor %}{% endif %}</small></td></tr>
     {% endfor %}
     </tbody></table></div>
+  </details>
   {% endif %}
+</div>
+
+<!-- ================================================================ APPEARANCE -->
+<div class="card" id="appearance">
+  <h2>Appearance</h2>
+  <div class="muted" style="margin-bottom:10px">Sets the look for everyone. Each person can still switch light or dark for their own browser on their Account page.</div>
+  <form method="post" action="/settings/appearance" class="stack">
+    {{ csrfField(csrf) }}
+    <div>
+      <h3>Colour Theme</h3>
+      <div class="choices">
+        {% for t in themes %}
+        <label class="choice">
+          <input type="radio" name="uiTheme" value="{{ t.id }}" {{ 'checked' if current.theme == t.id }}>
+          <span class="choice-body"><b>{{ t.label }}</b><small>{{ t.note }}</small>
+            <span class="swatches">{% for c in t.swatches %}<i style="background:{{ c }}"></i>{% endfor %}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3>Mode</h3>
+      <div class="row">
+        {% for m in modes %}<label class="check"><input type="radio" name="uiMode" value="{{ m.id }}" {{ 'checked' if current.mode == m.id }}> {{ m.label }}{{ ' (default)' if m.id == 'dark' }}</label>{% endfor %}
+      </div>
+    </div>
+    <div><button class="btn btn-primary" type="submit">Save appearance</button></div>
+  </form>
+</div>
+
+<!-- ================================================================ TABLE APPEARANCE -->
+<script>
+  // Behind each table's form: what the boxes hold, and the look the preview table gets (same rules as src/tableStyles.js).
+  window.tableStyleForm = function (saved) {
+    var line = function (l) { return { mode: (l && l.mode) || 'standard', size: (l && l.size) || 1, color: (l && l.color) || '' }; };
+    return {
+      fontSize: saved.fontSize || '', colWidth: saved.colWidth || '',
+      row: line(saved.rowLines), col: line(saved.colLines), cell: line(saved.cellLines),
+      get css() {
+        var v = [];
+        var fs = parseInt(this.fontSize, 10);
+        if (fs >= 10 && fs <= 24) { v.push('--tbl-font:' + fs + 'px'); v.push('--tbl-font-th:' + Math.round(fs * 0.82 * 10) / 10 + 'px'); }
+        var cw = parseInt(this.colWidth, 10);
+        if (cw >= 40 && cw <= 600) v.push('--tbl-colw:' + cw + 'px');
+        var self = this;
+        ['row', 'col', 'cell'].forEach(function (k) {
+          var l = self[k];
+          if (l.mode === 'off') v.push('--tbl-' + k + '-w:0px');
+          else if (l.mode === 'on') {
+            v.push('--tbl-' + k + '-w:' + Math.min(6, Math.max(1, parseInt(l.size, 10) || 1)) + 'px');
+            if (l.color) v.push('--tbl-' + k + '-c:' + l.color);
+          }
+        });
+        return v.join(';');
+      },
+    };
+  };
+</script>
+<div class="card" id="table-appearance" x-data="{ table: '{{ selectedTable }}' }">
+  <h2>Table Appearance</h2>
+  <div class="muted" style="margin-bottom:10px">Pick a table, then change its text size, column width and lines. The change is the same for everyone. Leave a box empty, or a line on <b>Standard</b>, to keep the standard look for that part.</div>
+  <label class="field-inline">Table
+    <select x-model="table">
+      {% for t in tables %}<option value="{{ t.id }}">{{ t.group }}: {{ t.label }}{{ ' (changed)' if tableStyles[t.id] }}</option>{% endfor %}
+    </select>
+  </label>
+  {% for t in tables %}
+  <form method="post" action="/settings/table-styles" class="stack ts-form" x-show="table === '{{ t.id }}'" x-cloak x-data='tableStyleForm({{ (tableStyles[t.id] or {}) | json | safe }})'>
+    {{ csrfField(csrf) }}
+    <input type="hidden" name="table" value="{{ t.id }}">
+    <div class="filters">
+      <label>Text Size (px) <input type="number" name="fontSize" min="{{ tableLimits.fontSize.min }}" max="{{ tableLimits.fontSize.max }}" step="1" x-model="fontSize" placeholder="Standard"></label>
+      <label>Minimum Column Width (px) <input type="number" name="colWidth" min="{{ tableLimits.colWidth.min }}" max="{{ tableLimits.colWidth.max }}" step="1" x-model="colWidth" placeholder="Automatic"></label>
+    </div>
+    <div class="ts-lines">
+      {% for l in [['row', 'Row Lines', 'The line between one row and the next.'], ['col', 'Column Lines', 'The line between one column and the next.'], ['cell', 'Cell Borders', 'A box around every cell.']] %}
+      <fieldset class="ts-line">
+        <legend>{{ l[1] }}</legend>
+        <div class="muted">{{ l[2] }}</div>
+        <select name="{{ l[0] }}Mode" x-model="{{ l[0] }}.mode" aria-label="{{ l[1] }}">
+          <option value="standard">Standard</option><option value="on">On</option><option value="off">Off</option>
+        </select>
+        <div class="ts-line-opts" x-show="{{ l[0] }}.mode === 'on'">
+          <label>Size (px) <input type="number" name="{{ l[0] }}Size" min="{{ tableLimits.lineSize.min }}" max="{{ tableLimits.lineSize.max }}" step="1" x-model="{{ l[0] }}.size"></label>
+          <label>Colour <input type="color" :value="{{ l[0] }}.color || '#8a96ab'" @input="{{ l[0] }}.color = $event.target.value"></label>
+          <button class="btn btn-sm" type="button" x-show="{{ l[0] }}.color" @click="{{ l[0] }}.color = ''">Use Theme Colour</button>
+          <small class="muted" x-show="!{{ l[0] }}.color">Theme colour</small>
+        </div>
+        <input type="hidden" name="{{ l[0] }}Color" :value="{{ l[0] }}.color">
+      </fieldset>
+      {% endfor %}
+    </div>
+    <div class="ts-preview">
+      <h3>Preview</h3>
+      <table class="t" :style="css">
+        <thead><tr><th>Job</th><th>Customer</th><th class="num">$ Impact</th><th class="num">Net</th></tr></thead>
+        <tbody>
+          <tr><td>104002</td><td>Pinecrest Trailers</td><td class="num">$5,018</td><td class="num">+$4,866</td></tr>
+          <tr><td>104014</td><td>Kestrel Transit</td><td class="num">$2,244</td><td class="num">+$2,114</td></tr>
+          <tr><td>104012</td><td>Ironwood Mining Supply</td><td class="num">$2,118</td><td class="num">-$358</td></tr>
+          <tr><td>104008</td><td>Lakeshore Controls</td><td class="num">$1,862</td><td class="num">-$1,402</td></tr>
+        </tbody>
+      </table>
+      <small class="muted">A sample, to show the lines, size and width. The real table keeps its own colours and layout.</small>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" type="submit">Save this table</button>
+      <button class="btn" type="submit" formaction="/settings/table-styles/reset" formnovalidate title="Remove every change for this table">Back to standard</button>
+    </div>
+  </form>
+  {% endfor %}
 </div>
 
 <!-- ================================================================ THRESHOLDS -->
 <div class="card" id="thresholds">
-  <h2>Thresholds and rules</h2>
+  <h2>Thresholds and Rules</h2>
   <form method="post" action="/settings/thresholds" class="stack">
     {{ csrfField(csrf) }}
     <div class="filters">
-      <label>Green below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
-      <label>Red above (%) <small>yellow is in between</small><input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
-      <label>Minimum to flag: hours <input type="number" step="0.25" min="0" name="minHours" value="{{ s.minHours }}" required></label>
-      <label>Minimum to flag: dollars <input type="number" step="10" min="0" name="minDollars" value="{{ s.minDollars }}" required></label>
-      <label>Sync window (months) <input type="number" min="1" max="120" name="syncWindowMonths" value="{{ s.syncWindowMonths }}" required></label>
+      <label>Green Below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
+      <label>Red Above (%) <small>yellow is in between</small><input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
+      <label>Minimum to Flag: Hours <input type="number" step="0.25" min="0" name="minHours" value="{{ s.minHours }}" required></label>
+      <label>Minimum to Flag: Dollars <input type="number" step="10" min="0" name="minDollars" value="{{ s.minDollars }}" required></label>
+      <label>Sync Window (Months) <input type="number" min="1" max="120" name="syncWindowMonths" value="{{ s.syncWindowMonths }}" required></label>
+      <label>Default Target Margin (%) <input type="number" step="0.5" min="0" max="99" name="targetMarginPct" value="{{ s.targetMarginPct }}" required title="Used for customers with no tier target below: customers not on the customer list, or whose tier box is empty"></label>
+    </div>
+    <h3 style="margin:6px 0 0">Target Margin by Customer Tier</h3>
+    <div class="muted">Each job is held to the target margin of its customer's tier (from the Customer Organization list below). Leave a box empty to use the default. This sets the colours on the job page, Flagged Jobs and Job Study, the "Likely Cause" of a low margin, and Margin vs Target $ on the Customers page.</div>
+    <div class="filters tier-targets">
+      {% for t in tierTargets %}
+      <label>{{ t.label }} (%) <input type="number" step="0.5" min="0" max="99" name="targetMargin_{{ t.tier }}" value="{{ s.targetMarginByTier[t.tier] if s.targetMarginByTier and s.targetMarginByTier[t.tier] is defined else '' }}" placeholder="{{ s.targetMarginPct }} (default)"></label>
+      {% endfor %}
     </div>
     <label class="check"><input type="checkbox" name="normalizeMaterialByQty" {{ 'checked' if s.normalizeMaterialByQty }}> Scale expected material to the quantity actually made (closed jobs that ran short or over)</label>
     <label class="check"><input type="checkbox" name="excludeNonOrderJobs" {{ 'checked' if s.excludeNonOrderJobs }}> Leave out jobs that are not linked to a sales order (stock, maintenance, internal)</label>
@@ -57,10 +211,10 @@
     <div><button class="btn btn-primary" type="submit">Save and re-check all jobs</button></div>
   </form>
 
-  <h3 id="overrides" style="margin-top:22px">Overrides by op code or resource group</h3>
+  <h3 id="overrides" style="margin-top:22px">Overrides by Op Code or Resource Group</h3>
   <div class="muted" style="margin-bottom:8px">Use these when one operation needs a tighter or looser limit (e.g. WELD 10%, ASSY 20%). An op code override wins over a resource group override, which wins over the global limits.</div>
   {% if overrides.length %}
-  <table class="t" style="max-width:640px"><thead><tr><th>Applies to</th><th>Name</th><th class="num">Green below</th><th class="num">Red above</th><th></th></tr></thead>
+  <table data-table="settings" class="t" style="max-width:640px"><thead><tr><th>Applies to</th><th>Name</th><th class="num">Green below</th><th class="num">Red above</th><th></th></tr></thead>
     <tbody>
     {% for o in overrides %}
       <tr><td>{{ 'Op code' if o.scope == 'op_code' else 'Resource group' }}</td><td><b>{{ o.scope_value }}</b></td><td class="num">{{ o.greenPct }}%</td><td class="num">{{ o.yellowPct }}%</td>
@@ -70,22 +224,54 @@
   {% endif %}
   <form method="post" action="/settings/overrides" class="form-inline" style="margin-top:10px">
     {{ csrfField(csrf) }}
-    <label>Applies to <select name="scope"><option value="op_code">Op code</option><option value="resource_group">Resource group</option></select></label>
+    <label>Applies To <select name="scope"><option value="op_code">Op code</option><option value="resource_group">Resource group</option></select></label>
     <label>Name <input name="value" list="ovNames" required placeholder="e.g. WELD"><datalist id="ovNames">{% for o in opCodes %}<option value="{{ o }}">{% endfor %}{% for g in groups %}<option value="{{ g.id }}">{% endfor %}</datalist></label>
-    <label>Green below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
-    <label>Red above (%) <input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
+    <label>Green Below (%) <input type="number" step="0.1" min="0" name="greenPct" value="{{ pct.green }}" required></label>
+    <label>Red Above (%) <input type="number" step="0.1" min="0" name="yellowPct" value="{{ pct.yellow }}" required></label>
     <button class="btn" type="submit">Add or update override</button>
+  </form>
+</div>
+
+<!-- ================================================================ MARGIN % COLOURS -->
+<div class="card" id="margin-colours">
+  <h2>Margin % Colours</h2>
+  <div class="muted">Colour each margin % by how far it is from <b>its own target</b> (the target margin of the customer's tier, set above), so a 25% margin is a different colour for a Tier A customer with a 45% target than for a Tier D one with a 20% target. Each row is a number of percentage points from target: <b>0</b> is the target itself, <b>-5</b> is 5 points under it, <b>5</b> is 5 points over it. A margin gets the colour of the lowest threshold it is below. Used in the Margin % column on the Customers pages and the Planned and Actual Margin columns of the job tables. Leave the list empty for the standard colouring (blue at or above the target margin, red below 0%). Display only: nothing is re-checked.</div>
+  <form method="post" action="/settings/margin-bands" class="stack" x-data='marginBandsForm({{ bandRows | json | safe }}, {{ maxBands }})'>
+    {{ csrfField(csrf) }}
+    <div class="band-rows">
+      <template x-for="(row, i) in rows" :key="row.id">
+        <div class="band-row">
+          <span>Margin vs target is below</span>
+          <input type="number" step="0.1" min="-100" max="100" name="bandBelow" x-model="row.below" aria-label="Points from target (negative = under target)" required>
+          <span>points</span>
+          <input type="color" name="bandColor" x-model="row.color" aria-label="Colour">
+          <span class="band-sample" :style="sample(row.color)" x-text="row.below === '' ? '' : label(row.below)"></span>
+          <button type="button" class="btn btn-sm" @click="remove(i)" title="Remove this threshold">Remove</button>
+        </div>
+      </template>
+      <div class="band-row" x-show="rows.length">
+        <label class="check"><input type="checkbox" name="bandTopOn" x-model="topOn"> Everything at or better than the highest threshold</label>
+        <input type="color" name="bandTopColor" x-model="topColor" :disabled="!topOn" aria-label="Colour for margins above the highest threshold">
+        <span class="band-sample" x-show="topOn" :style="sample(topColor)" x-text="topLabel()"></span>
+      </div>
+      <div class="muted" x-show="!rows.length">No thresholds yet: the standard colouring is used.</div>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" @click="add()" :disabled="rows.length >= max">Add a threshold</button>
+      <button type="button" class="btn" @click="example()" title="Replaces the list above with a starting set; nothing is saved until you press Save">Fill in an example</button>
+      <button class="btn btn-primary" type="submit">Save margin colours</button>
+    </div>
   </form>
 </div>
 
 <!-- ================================================================ RATES -->
 <div class="card" id="rates">
-  <h2>Labour and burden rate overrides ($ per hour)</h2>
+  <h2>Labour and Burden Rate Overrides ($ per Hour)</h2>
   <div class="muted" style="margin-bottom:8px">Rates come from each resource group in Epicor. Type a number to override one; leave it blank to use Epicor's. Dollar impact = hours x (labour + burden).</div>
   {% if groups.length %}
   <form method="post" action="/settings/rates">
     {{ csrfField(csrf) }}
-    <div class="table-wrap"><table class="t">
+    <div class="table-wrap"><table data-table="settings" class="t">
       <thead><tr><th>Resource group</th><th class="num">Setup labour</th><th class="num">Setup burden</th><th class="num">Prod labour</th><th class="num">Prod burden</th></tr>
       <tr><th></th><th colspan="4" class="muted" style="text-transform:none;font-weight:400">Epicor rate shown first; override in the box</th></tr></thead>
       <tbody>
@@ -104,11 +290,50 @@
   {% else %}<div class="empty">No resource groups yet. Sync some data first.</div>{% endif %}
 </div>
 
+<!-- ================================================================ CUSTOMER TIERS / ACCOUNT MANAGERS -->
+<div class="card" id="customer-org">
+  <h2>Customer Tiers and Account Managers</h2>
+  <div class="muted" style="margin-bottom:10px">
+    Each customer's tier level and account manager(s), shown on the Customers page. To change them, export the list, edit it in Excel and import it back: one row per customer with the headings
+    <b>Name</b>, <b>Level</b> (A, B, C, D, NEW) and <b>Account Management</b> (more than one person separated by commas; leave it empty or put XXXXX for nobody yet).
+    Customers are matched to Epicor by <b>name</b> (capitals and extra spaces do not matter).
+  </div>
+  <div class="kv acc-kv" style="margin-bottom:10px">
+    <div><span>Customers on the List</span><b>{{ org.count }}</b></div>
+    {% for t in org.tiers %}<div><span>Tier {{ t.tier }}</span><b>{{ t.n }}</b></div>{% endfor %}
+    <div><span>No Account Manager</span><b>{{ org.unassigned }}</b></div>
+    <div><span>Customers With Jobs Matched</span><b>{{ org.matched }} of {{ org.jobCustomers }}</b></div>
+  </div>
+  {% if org.updated %}<div class="muted" style="margin-bottom:8px">Last imported {{ org.updated | replace('T', ' ') | truncate(16, true, '') }} (UTC).</div>{% endif %}
+
+  <form id="orgImport" class="form-inline org-import" data-csrf="{{ csrf }}" autocomplete="off">
+    <label>Import File (.xlsx or .csv) <input type="file" id="orgFile" accept=".xlsx,.csv" required></label>
+    <label>When Importing
+      <select id="orgMode">
+        <option value="replace">Replace the whole list with this file</option>
+        <option value="update">Only add and change customers in this file</option>
+      </select>
+    </label>
+    <button class="btn btn-primary" type="submit">Import</button>
+    <a class="btn" href="/settings/customer-org/export.xlsx">&#8681; Export Excel</a>
+    <a class="btn" href="/settings/customer-org/export.csv">&#8681; Export CSV</a>
+  </form>
+  <div id="orgMsg" class="flash flash-warn" role="alert" hidden></div>
+
+  {% if org.notListedCount %}
+  <details class="fold" style="margin-top:12px">
+    <summary>{{ org.notListedCount }} customer{{ '' if org.notListedCount == 1 else 's' }} with jobs in the app {{ 'is' if org.notListedCount == 1 else 'are' }} not on the list</summary>
+    <div class="muted" style="margin:6px 0">The Excel export has these on a second sheet, "Not Yet Listed", ready to fill in. Names must match what Epicor calls the customer.</div>
+    <div class="org-missing">{% for c in org.notListed %}<span class="chip chip-grey">{{ c.name }}</span> {% endfor %}{% if org.notListedCount > org.notListed | length %}<span class="muted">and {{ org.notListedCount - (org.notListed | length) }} more</span>{% endif %}</div>
+  </details>
+  {% endif %}
+</div>
+
 <!-- ================================================================ ROOT CAUSES -->
 <div class="card" id="causes">
-  <h2>Root cause list</h2>
+  <h2>Root Cause List</h2>
   <div class="muted" style="margin-bottom:8px">Reviewers pick from this list (several can apply). Untick Active to hide a cause from new reviews; old reviews keep it.</div>
-  <table class="t" style="max-width:640px"><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead>
+  <table data-table="settings" class="t" style="max-width:640px"><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead>
     <tbody>
     {% for c in causes %}
       <tr><td colspan="3">
@@ -119,14 +344,14 @@
     {% endfor %}
     </tbody></table>
   <form method="post" action="/settings/causes" class="form-inline" style="margin-top:10px">{{ csrfField(csrf) }}
-    <label>New root cause <input name="name" required maxlength="100"></label><button class="btn" type="submit">Add</button></form>
+    <label>New Root Cause <input name="name" required maxlength="100"></label><button class="btn" type="submit">Add</button></form>
 </div>
 
 <!-- ================================================================ USERS -->
 <div class="card" id="users">
   <h2>Users</h2>
   <div class="muted" style="margin-bottom:8px"><b>Admin</b>: settings, thresholds, users and employee-level data (who clocked what). <b>Reviewer</b>: dashboard, jobs, post-mortems and actions.</div>
-  <div class="table-wrap"><table class="t">
+  <div class="table-wrap"><table data-table="settings" class="t">
     <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Active</th><th>Last sign-in</th><th></th><th>Reset password</th></tr></thead>
     <tbody>
     {% for u in users %}
@@ -142,7 +367,7 @@
     {% endfor %}
     </tbody></table></div>
   {% for u in users %}<form method="post" action="/settings/users/{{ u.id }}" id="uf{{ u.id }}" class="hidden">{{ csrfField(csrf) }}</form>{% endfor %}
-  <h3 style="margin-top:16px">Add a user</h3>
+  <h3 style="margin-top:16px">Add a User</h3>
   <form method="post" action="/settings/users" class="form-inline">{{ csrfField(csrf) }}
     <label>Username <input name="username" required pattern="[A-Za-z0-9._-]{3,40}" autocomplete="off"></label>
     <label>Name <input name="displayName" required autocomplete="off"></label>
@@ -151,4 +376,7 @@
     <button class="btn btn-primary" type="submit">Add user</button>
   </form>
 </div>
+</div>
+</div>
 {% endblock %}
+{% block scripts %}<script src="/static/settings-nav.js" defer></script><script src="/static/customer-org.js" defer></script><script src="/static/margin-bands.js"></script>{% endblock %}

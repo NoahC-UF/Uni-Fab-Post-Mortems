@@ -1,0 +1,52 @@
+{% extends "base.njk" %}
+{% from "_accuracy.njk" import tile, filterBar, orgNote, custTable, marginCell, listPicker, lists %}
+{% block title %}Post-Mortem Review: Customers{% endblock %}
+{% block head %}
+<script src="/vendor/chart/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+{% set f = d.filters %}
+<div class="page-head acc-head">
+  <div>
+    <h1 class="acc-title">Post-Mortem Review: Customers</h1>
+  </div>
+  <div class="row no-print"><a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=customers">&#8681; Customers CSV</a></div>
+</div>
+
+{{ filterBar(f, '/accuracy/customers', sorts, bases, false, '', presets, org, orders, tops) }}
+{{ orgNote(f, '/accuracy/customers', baseNoOrg) }}
+
+{% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
+
+<div class="tiles">
+  {{ tile('Customers With Jobs', d.customers, d.jobCount ~ ' jobs in range', '') }}
+  {{ tile('Needs Attention', d.attentionCount, 'of ' ~ d.customers ~ ' customers', 't-yellow') }}
+  {{ tile('Net Variance', (d.shop.netDollars | smoney0), 'all customers &middot; gross ' ~ (d.shop.grossDollars | money0), 't-red' if d.shop.netDollars > 0 else 't-blue') }}
+  {{ tile('Margin', ((d.shop.marginPct * 100) | round(1) ~ '%') if d.shop.marginPct !== null else 'n/a', ((d.shop.margin | smoney0) ~ ' on ' ~ (d.shop.price | money0) ~ ' sold &middot; target ' ~ ((d.shop.targetMargin * 100) | round(1)) ~ '% (by tier)') if d.shop.pricedJobs else 'no priced closed jobs', 't-green' if d.shop.marginPct !== null and d.shop.marginPct >= d.shop.targetMargin else 't-yellow') }}
+  {{ tile('Customer-Level Accuracy', (d.shop.accuracy | pct) if d.shop.accuracy !== null else 'n/a', (d.shop.pctOff | pct) ~ ' of jobs off, shop-wide', 't-green' if d.shop.accuracy !== null and d.shop.accuracy >= 0.8 else 't-yellow') }}
+</div>
+<div class="card">
+  <div class="page-head" style="margin-bottom:8px">
+    <h2>Customers</h2>
+    <div class="row no-print">{{ listPicker(f, '/accuracy/customers', listLinks, listViews) }}</div>
+  </div>
+  {{ lists(f,
+    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': custTable(d.over, base, d.targetMargin, marginBands), 'foot': d.overAll ~ ' over the estimate in all.' },
+    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': custTable(d.under, base, d.targetMargin, marginBands), 'foot': d.underAll ~ ' under the estimate in all.' }) }}
+  {% if d.hidden %}<div class="muted acc-foot">{{ d.hidden }} customer{{ '' if d.hidden == 1 else 's' }} with fewer than {{ f.minJobs }} jobs left out. Lower Minimum Jobs to see them.</div>{% endif %}
+</div>
+
+{# folded away until opened: the chart is drawn the first time it is opened (public/accuracy.js) #}
+<details class="card card-fold" id="bubbleFold">
+  <summary><h2>How Often vs How Far Off</h2><span class="muted">click to open</span></summary>
+  <div class="muted" style="margin:10px 0 8px">
+    Across: the share of the customer's jobs that were off. Up: net variance % (above zero = jobs over the estimate, below = under). Bubble size: the customer's total job dollars.
+    The dashed lines mark the green band (&plusmn;{{ (d.greenMax * 100) | round(1) }}%) and the shop-wide share of jobs off ({{ d.shop.pctOff | pct }}). Top right = <b>consistently over the estimate</b>; middle = <b>occasionally way off</b>. Click a bubble to open that customer.
+  </div>
+  {% if d.bubbles.length %}
+  <div class="chart-box" style="height:420px"><canvas id="bubbleChart"></canvas></div>
+  <script type="application/json" id="bubbleData">{{ {'points': d.bubbles, 'green': d.greenMax, 'shopOff': d.shop.pctOff, 'base': base} | json | safe }}</script>
+  {% else %}<div class="empty">No customers have {{ f.minJobs }} or more jobs for these filters.</div>{% endif %}
+</details>
+{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}
