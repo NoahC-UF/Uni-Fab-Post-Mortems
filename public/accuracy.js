@@ -100,6 +100,78 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ---- a customer's margin % per month / quarter, with its tier target as a dashed line
+  const mg = read('marginData');
+  const mgEl = document.getElementById('marginChart');
+  if (mg && mgEl) {
+    const pts = mg.points || [];
+    if (!pts.length) {
+      mgEl.parentElement.innerHTML = '<div class="empty">No closed, priced jobs in this range.</div>';
+    } else {
+      const pct1 = (n) => `${(n * 100).toFixed(1)}%`;
+      new Chart(mgEl, {
+        type: 'line',
+        data: {
+          labels: pts.map((p) => p.label),
+          datasets: [
+            { label: 'Margin %', data: pts.map((p) => (p.marginPct === null ? null : p.marginPct * 100)), borderColor: v('--link'), backgroundColor: v('--link'), pointRadius: 4, tension: 0, spanGaps: true, borderWidth: 2 },
+            ...(mg.target === null || mg.target === undefined ? [] : [{ label: 'Target', data: pts.map(() => mg.target * 100), borderColor: v('--muted'), borderDash: [5, 5], pointRadius: 0, borderWidth: 1 }]),
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: { y: { ticks: { callback: (val) => `${val}%` }, title: { display: true, text: 'Margin %' } } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              filter: (item) => item.datasetIndex === 0,
+              callbacks: {
+                label: (c) => `Margin: ${c.parsed.y === null ? 'n/a' : pct1(c.parsed.y / 100)}`,
+                afterLabel: (c) => [`${money(pts[c.dataIndex].margin)} on ${money(pts[c.dataIndex].price)} sold`, `${pts[c.dataIndex].jobs} priced job${pts[c.dataIndex].jobs === 1 ? '' : 's'}`, mg.target === null || mg.target === undefined ? '' : `Target ${pct1(mg.target)}`].filter(Boolean),
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  // ---- a customer's Margin vs Target $ per month / quarter: one bar each, green above target, red short of it
+  const vt = read('vsTargetData');
+  const vtEl = document.getElementById('vsTargetChart');
+  if (vt && vtEl) {
+    const pts = vt.points || [];
+    if (!pts.length) {
+      vtEl.parentElement.innerHTML = '<div class="empty">No closed, priced jobs in this range.</div>';
+    } else {
+      new Chart(vtEl, {
+        type: 'bar',
+        data: {
+          labels: pts.map((p) => p.label),
+          datasets: [{ label: 'Margin vs Target $', data: pts.map((p) => p.vsTarget), backgroundColor: pts.map((p) => ((p.vsTarget ?? 0) < 0 ? v('--red') : v('--green'))) }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: { y: { ticks: { callback: (val) => money(val) }, title: { display: true, text: 'Margin vs Target $' } } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (c) => `${c.parsed.y < 0 ? 'Short of target' : 'Over target'}: ${money(Math.abs(c.parsed.y))}`,
+                afterLabel: (c) => [`${money(pts[c.dataIndex].margin)} margin on ${money(pts[c.dataIndex].price)} sold`, `${pts[c.dataIndex].jobs} priced job${pts[c.dataIndex].jobs === 1 ? '' : 's'}`],
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+
   // ---- customer quadrant: how often off (across) vs how far and which way (up), bubble = job dollars
   const bub = read('bubbleData');
   const bubEl = document.getElementById('bubbleChart');

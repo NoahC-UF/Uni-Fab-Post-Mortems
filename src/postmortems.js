@@ -193,9 +193,19 @@ export function deleteAction(db, actionId) {
 }
 
 // ------------------------------------------------------------------ listings
-export function listPostMortems(db, { status = '', owner = '' } = {}) {
+/** SQL for "this customer's jobs" (j = jobs). '_internal' = Internal / Stock jobs, which have no customer. */
+export const INTERNAL_CUSTOMER = '_internal';
+export function customerCondition(custKey) {
+  return custKey === INTERNAL_CUSTOMER ? "(j.order_num IS NULL OR COALESCE(j.cust_id, '') = '')" : 'j.cust_id = @cust';
+}
+
+export function listPostMortems(db, { status = '', owner = '', cust = '' } = {}) {
   const where = [];
   const p = {};
+  if (cust) {
+    where.push(customerCondition(cust)); // only this customer's post-mortems
+    if (cust !== INTERNAL_CUSTOMER) p.cust = cust;
+  }
   if (status === 'open') where.push("pm.status IN ('under_review','root_cause_found','actions_assigned')");
   else if (status === 'done') where.push("pm.status IN ('closed','dismissed')");
   else if (STATUSES.includes(status)) {

@@ -300,13 +300,9 @@ describe('the pages\' numbers', () => {
     const c = customerDetail(S.db, F(), target.key);
     assert.equal(c.summary.jobs, target.jobs);
     assert.ok(c.jobs.length === Math.min(500, target.jobs));
-    assert.equal(c.pmProgress.done, 1);
-    assert.equal(c.pmProgress.started, flagged[1] ? 1 : 0);
-    assert.equal(c.pmProgress.flagged, c.pmProgress.done + c.pmProgress.started + c.pmProgress.pending);
-    assert.deepEqual(c.causes.map((r) => r.n), [1]);
     assert.ok(c.jobs.some((j) => j.pm && j.pm.status === 'closed'));
     assert.ok(Array.isArray(c.repeatParts) && c.repeatParts.every((p) => p.off >= 2));
-    assert.ok(c.trend.length > 0);
+    assert.ok(c.marginTrend.length > 0);
     assert.ok(Math.abs(c.summary.vsShop - (c.summary.pctOff - c.shop.pctOff)) < 0.0002);
     assert.equal(customerDetail(S.db, F(), 'NOBODY'), null);
     // the ops page can be limited to one customer too
@@ -520,7 +516,7 @@ describe('the pages in the browser', () => {
     assert.ok(link, 'rows link to the customer');
     const detail = await S.reviewer.get(`${link[1]}?${q}`);
     assert.equal(detail.statusCode, 200);
-    for (const t of ['Variance % Over Time', 'Post-Mortems for This Customer', 'Root Causes Picked', "What Is Going Wrong on This Customer's Work", 'Repeat Part Numbers', 'All Jobs', 'across the shop']) assert.ok(detail.body.includes(t), t);
+    for (const t of ['Margin Over Time', 'Margin vs Target $ Over Time', "What Is Going Wrong on This Customer's Work", 'Repeat Part Numbers', 'All Jobs', 'Flagged Jobs', 'Post-Mortems In Progress', 'Completed Post-Mortems', 'Top Root Causes']) assert.ok(detail.body.includes(t), t);
     assert.match(detail.body, /Worse than normal|Better than normal|In line with the shop/);
     assert.equal((await S.reviewer.get(`/accuracy/customers/NOBODY?${q}`)).statusCode, 404);
   });

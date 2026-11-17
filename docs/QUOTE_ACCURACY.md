@@ -103,6 +103,24 @@ Six cards sit above the lists. They cover the customers the filters leave in (so
 - **Net Variance**: actual minus estimated cost over all jobs, with the gross (size, ignoring direction) and the labour / material / other split. Red = over the estimates overall, blue = under.
 - **Customer-Level Accuracy**: the share of jobs that were not off. Green at 80% or more, yellow below (the 80% is fixed, not a setting).
 
+## The cards on one customer's page
+
+Seven cards, each a line or two of small print, all the same height:
+
+- **Margin**: the customer's margin %, with the margin on what it sold for (priced jobs, and any cost from unpriced jobs on the same orders, are in the tooltip). Green at or over its target, yellow under, red for a loss.
+- **Margin vs Target $**: the dollars short of (red) or over (green) this customer's own tier target, and how many points under or over that target the margin is.
+- **Labour vs Material**: which one the variance is mainly in, with the labour, material, other and net amounts.
+- **Flagged Jobs**: how many of this customer's jobs in the date range are flagged, of how many, split red and yellow, with a link to them in Flagged Jobs.
+- **Post-Mortems In Progress** and **Completed Post-Mortems** (closed or dismissed): the count, the most recent one to open straight from the card, and **See all**, which opens the Post-Mortems list for this customer only. These cover all dates: a review that is open is open whatever the date range says.
+- **Top Root Causes**: the cause picked most often in this customer's post-mortems (all dates) and the next one; hover for the top five.
+
+Under the cards, two charts side by side (switch **Month / Quarter** above the first one; both follow it and the date range):
+
+- **Margin Over Time**: a line of the margin % of the jobs closed in each month, with the customer's tier target as a dashed line. Hover for the margin on what it sold for and the number of priced jobs, so a month with only one or two jobs is easy to spot.
+- **Margin vs Target $ Over Time**: one bar per month, green above target and red short of it. The bars add up to the Margin vs Target $ card.
+
+Only closed jobs with a sale price count, the same as the Margin card.
+
 ## Filters
 
 Quick date buttons above the filters (Last 30 days, Last 90 days, This month, Last month, Year to date, Last 12 months, the same ranges as the Dashboard) switch the dates in one click and keep every other filter. **Tier** (a drop-down of tick boxes: tick one or more, such as A and B, or none for all tiers; *Not on the List* can be ticked with them) and **Account Manager** (both from the Customer Organization list in Settings) limit both pages to those customers: every figure, list, chart and CSV then covers only them, and Internal / Stock jobs drop out because they have no customer. Account Manager also offers Unassigned, and both offer Not on the List. Neither filter applies inside one customer's page. Date range (default last 90 days, the same on the Dashboard, Flagged Jobs and these pages; closed date, or latest labour / material date for an in-progress job), Jobs (closed only by default, or include in-progress: only completed operations and issued material are compared, never a full estimate against partial actuals), Variance Basis ($ default, Hours, %), Minimum Jobs (default 3: smaller groups are left out of the lists, and the page says how many), Sort Lists By (Needs Attention is the default; the Customers page opens on Margin vs Target $, Low to High, so the customers furthest below their target come first; Impact, % of Jobs Off, Avg Variance %, and on the Customers page Margin $ and Margin %; customers with no margin are always last) with a Sort Order of High to Low (default) or Low to High, group operations by Op Code or Resource Group, group materials by Part Number or Material Class, trend by Month or Quarter, Exclude Outliers (in the **Other Options** drop-down with Include Internal / Stock Jobs; single lines over +/-300%; the page always says how many there are), Include Internal / Stock Jobs.
@@ -113,7 +131,7 @@ The filters are in the address, so a filtered view can be bookmarked or sent to 
 
 Operation or material -> the part numbers it appears on (parts off on **3 or more jobs** are marked Repeat and listed first: the easiest wins) -> the contributing jobs (Job #, part, customer, expected vs actual, variance, post-mortem status, each linking to the job or its post-mortem).
 Each group also shows its setup / run split (operations) or usage / price split (materials), and a trend of its variance % by month or quarter.
-Customers: one customer in full with a summary, trend, the same operation and material lists for that customer only, repeat parts (off on 2 or more jobs), every job with its post-mortem status, how many flagged jobs have a completed post-mortem, and a count of the root causes picked.
+Customers: one customer in full with cards, margin and margin-vs-target charts over time, the same operation and material lists for that customer only, repeat parts (off on 2 or more jobs), and every job with its post-mortem status.
 
 ## BAQ fields to add
 

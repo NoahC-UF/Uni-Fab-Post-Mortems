@@ -3,8 +3,9 @@
 {% block title %}Post-Mortems{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Post-Mortems</h1><div class="muted">Reviews that have been started. To start one, open a flagged job.</div></div>
+  <div><h1>Post-Mortems{% if custLabel %}: {{ custLabel }}{% endif %}</h1><div class="muted">{% if custLabel %}Only this customer's reviews. <a href="/postmortems?status={{ status }}{% if owner %}&amp;owner={{ owner }}{% endif %}">Show all customers</a>{% else %}Reviews that have been started. To start one, open a flagged job.{% endif %}</div></div>
   <form method="get" action="/postmortems" class="form-inline">
+    {% if cust %}<input type="hidden" name="cust" value="{{ cust }}">{% endif %}
     <label>Show
       <select name="status" onchange="this.form.submit()">
         <option value="open" {{ 'selected' if status == 'open' }}>Open reviews</option>

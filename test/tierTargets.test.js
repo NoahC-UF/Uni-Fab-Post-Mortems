@@ -144,7 +144,7 @@ describe('the target margin by tier, everywhere', () => {
     assert.equal(c.targetMargin, 0.4);
     assert.equal(c.summary.target, 0.4);
     const detail = (await S.admin.get(`/accuracy/customers/${encodeURIComponent(c.key)}?from=2000-01-01&to=2999-01-01`)).body;
-    assert.ok(detail.includes('vs the 40% tier A target'));
+    assert.ok(detail.includes('the 40% tier A target'));
   });
 
   test('Job Study holds every job to its own target, and says so', () => {

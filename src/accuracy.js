@@ -18,6 +18,7 @@
 import { getEngineConfig, getSettings } from './settings.js';
 import { loadCustomerOrg, orgFor, customerIdsFor } from './customerOrg.js';
 import { targetContext, targetFor } from './targets.js';
+import { customerCondition, INTERNAL_CUSTOMER } from './postmortems.js';
 import { tierFor, limitsFor, passesMinimum } from './engine/thresholds.js';
 
 const iso = (d) => d.toISOString().slice(0, 10);
@@ -441,6 +442,39 @@ export function trendOf(lines, granularity, kind) {
     .map(([label, t]) => ({ label, pct: t.est > 0 ? r4((t.act - t.est) / t.est) : null, netDollars: r2(t.varD), lines: t.lines, pctOff: t.lines ? r4(t.off / t.lines) : 0 }));
 }
 
+/**
+ * A customer's margin over time: one point per month (or quarter), by the day each job closed (the date the date range
+ * is applied to). Only closed, priced jobs count, the same as the Margin card, so the points add up to it.
+ * Each point: jobs, price, margin $, margin %, and Margin vs Target $ (margin less target % x price).
+ */
+export function marginTrendOf(db, jobs, granularity, target) {
+  const priced = jobs.filter((j) => j.priced);
+  const closedOn = new Map();
+  for (let i = 0; i < priced.length; i += 500) {
+    const chunk = priced.slice(i, i + 500);
+    for (const r of db.prepare(`SELECT job_num, closed_date FROM jobs WHERE job_num IN (${chunk.map(() => '?').join(',')})`).all(...chunk.map((j) => j.job))) closedOn.set(r.job_num, r.closed_date);
+  }
+  const bucket = (d) => {
+    if (!d) return null;
+    const y = d.slice(0, 4);
+    const m = Number(d.slice(5, 7));
+    return granularity === 'quarter' ? `${y}-Q${Math.ceil(m / 3)}` : d.slice(0, 7);
+  };
+  const m = new Map();
+  for (const j of priced) {
+    const b = bucket(closedOn.get(j.job) || j.activity);
+    if (!b) continue;
+    if (!m.has(b)) m.set(b, []);
+    m.get(b).push(j);
+  }
+  return [...m.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, list]) => {
+      const t = marginOf(list);
+      return { label, jobs: t.pricedJobs, price: t.price, margin: t.margin, marginPct: t.marginPct, vsTarget: vsTargetOf(t, target) };
+    });
+}
+
 /** Job-by-job rows for a set of lines of one group (so a job with two WELD operations is one row). */
 function jobRows(db, lines, kind) {
   const m = new Map();
@@ -752,11 +786,8 @@ export function customerDetail(db, f, custKey) {
     .map((p) => ({ ...p, varD: r2(p.varD), avgPct: p.estD > 0 ? r4(p.varD / p.estD) : null }))
     .sort((a, b) => b.off - a.off || Math.abs(b.varD) - Math.abs(a.varD));
 
-  // job list with post-mortem status, and how far the customer's FLAGGED jobs have got
+  // job list with post-mortem status
   const pm = postMortemStatus(db, jobs.map((j) => j.job));
-  const flaggedJobs = db.prepare(`SELECT job_num FROM job_metrics WHERE flag IN ('red','yellow') AND job_num IN (${jobs.map(() => '?').join(',')})`).all(...jobs.map((j) => j.job)).map((r) => r.job_num);
-  const done = flaggedJobs.filter((n) => ['closed', 'dismissed'].includes(pm.get(n)?.status)).length;
-  const started = flaggedJobs.filter((n) => pm.get(n) && !['closed', 'dismissed'].includes(pm.get(n).status)).length;
   const jobList = jobs
     .map((j) => ({
       ...j, estD: r2(j.estFull), actD: r2(j.actFull), varD: r2(j.varFull), pct: j.estFull > 0 ? r4(j.varFull / j.estFull) : null, pm: pm.get(j.job) ?? null,
@@ -767,25 +798,54 @@ export function customerDetail(db, f, custKey) {
     }))
     .sort((a, b) => Math.abs(b.varD) - Math.abs(a.varD) || a.job.localeCompare(b.job));
 
-  // root causes picked in the post-mortems of this customer's jobs
-  const pmIds = [...pm.values()].map((p) => p.id);
-  const causes = pmIds.length
-    ? db.prepare(`SELECT rc.name AS name, COUNT(*) AS n FROM post_mortem_root_causes x JOIN root_causes rc ON rc.id = x.root_cause_id WHERE x.post_mortem_id IN (${pmIds.map(() => '?').join(',')}) GROUP BY rc.name ORDER BY n DESC, rc.name`).all(...pmIds).map((r) => ({ ...r }))
-    : [];
-
   return {
     filters: f,
     key: custKey,
     summary,
     shop,
     targetMargin: summary.target, // this customer's tier target
-    trend: trendOf(lines, f.trend, 'material'), // dollars basis: a customer's variance % over time
+    marginTrend: marginTrendOf(db, jobs, f.trend, summary.target),
     ops: rankGroups(ops, one),
     mtls: rankGroups(mtls, one),
     repeatParts,
     jobs: jobList.slice(0, 500),
     jobCount: jobList.length,
-    pmProgress: { flagged: flaggedJobs.length, done, started, pending: flaggedJobs.length - done - started },
+    cards: customerCards(db, custKey, jobs),
+  };
+}
+
+/**
+ * The figures behind the cards at the top of a customer's page that are not in the summary:
+ *  flagged: this customer's jobs in the date range that are red or yellow (of all its jobs in the range)
+ *  open / done: the customer's post-mortems, ALL dates (an open review is open whatever the dates say), each with the most recent one
+ *  causes: the root causes picked in those post-mortems, most picked first
+ */
+export function customerCards(db, custKey, jobs) {
+  const flags = jobs.length
+    ? db.prepare(`SELECT flag, COUNT(*) AS n FROM job_metrics WHERE flag IN ('red','yellow') AND job_num IN (${jobs.map(() => '?').join(',')}) GROUP BY flag`).all(...jobs.map((j) => j.job))
+    : [];
+  const flagN = (f) => flags.find((r) => r.flag === f)?.n ?? 0;
+
+  const cond = customerCondition(custKey);
+  const p = custKey === INTERNAL_CUSTOMER ? {} : { cust: custKey };
+  const pms = db
+    .prepare(`SELECT pm.id, pm.job_num AS job, pm.status, pm.updated_at AS updatedAt, pm.closed_at AS closedAt
+             FROM post_mortems pm JOIN jobs j ON j.job_num = pm.job_num WHERE ${cond}`)
+    .all(p);
+  const isDone = (r) => ['closed', 'dismissed'].includes(r.status);
+  const newest = (list, key) => [...list].sort((a, b) => String(b[key] ?? b.updatedAt).localeCompare(String(a[key] ?? a.updatedAt)) || b.id - a.id)[0] ?? null;
+  const open = pms.filter((r) => !isDone(r));
+  const done = pms.filter(isDone);
+  const causes = db
+    .prepare(`SELECT rc.name AS name, COUNT(*) AS n
+             FROM post_mortem_root_causes x JOIN root_causes rc ON rc.id = x.root_cause_id
+             JOIN post_mortems pm ON pm.id = x.post_mortem_id JOIN jobs j ON j.job_num = pm.job_num
+             WHERE ${cond} GROUP BY rc.name ORDER BY n DESC, rc.name LIMIT 5`)
+    .all(p);
+  return {
+    flagged: { jobs: jobs.length, flagged: flagN('red') + flagN('yellow'), red: flagN('red'), yellow: flagN('yellow') },
+    open: { count: open.length, latest: newest(open, 'updatedAt') },
+    done: { count: done.length, latest: newest(done, 'closedAt') },
     causes,
   };
 }

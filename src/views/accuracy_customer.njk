@@ -23,14 +23,34 @@
 
 {{ filterBar(f, '/accuracy/customers/' ~ (c.key | urlencode), sorts, bases, false, '', presets, org, orders) }}
 
-<div class="tiles">
-  {{ tile('Jobs', s.jobs, s.jobsOff ~ ' off', '') }}
-  {{ tile('Margin', ((s.marginPct * 100) | round(1) ~ '%') if s.marginPct !== null else 'n/a', ((s.margin | smoney0) ~ ' on ' ~ (s.price | money0) ~ ' sold &middot; ' ~ s.pricedJobs ~ ' priced job' ~ ('' if s.pricedJobs == 1 else 's') ~ ((' &middot; includes ' ~ (s.orderCost | money0) ~ ' of cost from unpriced jobs on the same orders') if s.orderCost else '') ~ ((' &middot; ' ~ (s.vsTarget | smoney0) ~ ' vs the ' ~ ((c.targetMargin * 100) | round(1)) ~ '% ' ~ ('tier ' ~ s.tier ~ ' ' if s.tier else '') ~ 'target') if s.vsTarget !== null else '')) if s.pricedJobs else 'no priced closed jobs', 't-green' if s.marginPct !== null and s.marginPct >= c.targetMargin else 't-yellow') }}
-  {{ tile('Net Variance', (s.netDollars | smoney0), 'gross ' ~ (s.grossDollars | money0) ~ ' &middot; ' ~ (s.avgPct | spct), 't-red' if s.netDollars > 0 else 't-blue') }}
-  {{ tile('Labour vs Material', s.mainly, (s.labourDollars | smoney0) ~ ' labour &middot; ' ~ (s.materialDollars | smoney0) ~ ' material', 't-yellow') }}
-  {{ tile('Jobs Off', (s.pctOff | pct), (c.shop.pctOff | pct) ~ ' across the shop &middot; ' ~ ((s.vsShop * 100) | spts), 't-red' if s.vsShop > 0 else 't-green') }}
-  {{ tile('Accuracy', ((1 - s.pctOff) | pct), 'shop-wide ' ~ (c.shop.accuracy | pct), 't-green' if s.vsShop <= 0 else 't-yellow') }}
-  {{ tile('Attention Score', (s.attention | money0), 'gross variance &times; share of jobs off', 't-yellow') }}
+<div class="tiles tiles-7">
+  {% set k = c.cards %}
+  {% set ckey = c.key | urlencode %}
+  {% set hasTarget = s.pricedJobs and s.marginPct !== null and c.targetMargin !== null %}
+  {# Colours: green = good / at or over target, yellow = a warning, red = a loss, a shortfall or flagged work, blue = information only. #}
+  {{ tile('Margin', ((s.marginPct * 100) | round(1) ~ '%') if s.marginPct !== null else 'n/a',
+      ((s.margin | smoney0) ~ ' on ' ~ (s.price | money0) ~ ' sold') if s.pricedJobs else 'no priced closed jobs',
+      't-red' if s.marginPct !== null and s.marginPct < 0 else ('t-green' if hasTarget and s.marginPct >= c.targetMargin else 't-yellow'),
+      (s.pricedJobs ~ ' priced job' ~ ('' if s.pricedJobs == 1 else 's') ~ ((', including ' ~ (s.orderCost | money0) ~ ' of cost from unpriced jobs on the same orders') if s.orderCost else '')) if s.pricedJobs else '') }}
+  {{ tile('Margin vs Target $', (s.vsTarget | smoney0) if s.vsTarget !== null else 'n/a',
+      (((((s.marginPct - c.targetMargin) * 100) | abs | round(1)) ~ ' pts ' ~ ('under' if s.marginPct < c.targetMargin else 'over') ~ ' the ' ~ ((c.targetMargin * 100) | round(1)) ~ '% ' ~ ('tier ' ~ (s.tier | e) ~ ' ' if s.tier else '') ~ 'target') if hasTarget else 'no priced closed jobs'),
+      't-red' if s.vsTarget !== null and s.vsTarget < 0 else ('t-green' if s.vsTarget !== null else ''),
+      'Margin dollars less what this customer\'s target margin would have earned on the same sale price') }}
+  {{ tile('Labour vs Material', s.mainly,
+      (s.labourDollars | smoneyK) ~ ' labour &middot; ' ~ (s.materialDollars | smoneyK) ~ ' material<br>other ' ~ (s.otherDollars | smoneyK) ~ ' &middot; net ' ~ (s.netDollars | smoneyK),
+      't-yellow', 'Where the variance (actual less estimate) is: labour, material and the rest (sub-assemblies, inspection material, unestimated work)') }}
+  {{ tile('Flagged Jobs', k.flagged.flagged,
+      'of ' ~ k.flagged.jobs ~ ' jobs &middot; ' ~ k.flagged.red ~ ' red &middot; ' ~ k.flagged.yellow ~ ' yellow<br><a href="/jobs?cust=' ~ ckey ~ '&amp;from=' ~ f.from ~ '&amp;to=' ~ f.to ~ '">See all &rsaquo;</a>',
+      't-red' if k.flagged.red else ('t-yellow' if k.flagged.flagged else 't-green'), 'Jobs in this date range that are flagged red or yellow') }}
+  {{ tile('Post-Mortems In Progress', k.open.count,
+      (('Latest: <a href="/postmortems/' ~ k.open.latest.id ~ '">' ~ (k.open.latest.job | e) ~ '</a> &middot; ' ~ (STATUS_LABELS[k.open.latest.status] | e) ~ '<br><a href="/postmortems?status=open&amp;cust=' ~ ckey ~ '">See all ' ~ k.open.count ~ ' &rsaquo;</a>') if k.open.latest else 'none open<br><a href="/postmortems?status=all&amp;cust=' ~ ckey ~ '">See all &rsaquo;</a>'),
+      't-yellow' if k.open.count else 't-blue', 'This customer\'s reviews that are not closed yet, whatever the dates above') }}
+  {{ tile('Completed Post-Mortems', k.done.count,
+      (('Latest: <a href="/postmortems/' ~ k.done.latest.id ~ '">' ~ (k.done.latest.job | e) ~ '</a> &middot; ' ~ (STATUS_LABELS[k.done.latest.status] | e) ~ '<br><a href="/postmortems?status=done&amp;cust=' ~ ckey ~ '">See all ' ~ k.done.count ~ ' &rsaquo;</a>') if k.done.latest else 'none completed yet<br><a href="/postmortems?status=all&amp;cust=' ~ ckey ~ '">See all &rsaquo;</a>'),
+      't-green' if k.done.count else 't-blue', 'This customer\'s reviews that were closed or dismissed, whatever the dates above') }}
+  {{ tile('Top Root Causes', ('<span class="value-text">' ~ (k.causes[0].name | e) ~ '</span>') if k.causes.length else 'None yet',
+      ((k.causes[0].n ~ ' post-mortem' ~ ('' if k.causes[0].n == 1 else 's') ~ '<br>' ~ (('then ' ~ (k.causes[1].name | e) ~ ' (' ~ k.causes[1].n ~ ')') if k.causes.length > 1 else 'no other cause picked')) if k.causes.length else 'no post-mortem has picked a root cause<br>yet'),
+      't-blue', ('Root causes picked most often in this customer\'s post-mortems, whatever the dates above: ' ~ (k.causes | join(', ', 'name'))) if k.causes.length else 'No post-mortem of this customer has picked a root cause yet') }}
 </div>
 <div class="flash {{ 'flash-warn' if s.vsShop > 0.005 else 'flash-info' }} acc-compare">
   {% if s.vsShop > 0.005 %}<b>Worse than normal:</b> {{ s.pctOff | pct }} of this customer's jobs were off, against {{ c.shop.pctOff | pct }} for the shop as a whole ({{ (s.vsShop * 100) | spts }}).
@@ -40,29 +60,19 @@
 
 <div class="grid-2">
   <div class="card">
-    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Variance % Over Time</h2>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Margin Over Time</h2>
       <span class="seg no-print"><small class="muted">By</small>
         <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'month' }}" href="/accuracy/customers/{{ c.key | urlencode }}?{{ base }}&trend=month">Month</a>
         <a class="btn btn-sm {{ 'btn-primary' if f.trend == 'quarter' }}" href="/accuracy/customers/{{ c.key | urlencode }}?{{ base }}&trend=quarter">Quarter</a></span></div>
-    <div class="muted" style="margin:4px 0">Net variance % of this customer's work, by when it was done.</div>
-    <div class="chart-box" style="height:230px"><canvas id="trendChart"></canvas></div>
-    <script type="application/json" id="trendData">{{ {'points': c.trend, 'green': greenMax} | json | safe }}</script>
+    <div class="muted" style="margin:4px 0">Margin % of the jobs closed in each {{ f.trend }}, against the {{ ((c.targetMargin * 100) | round(1)) if c.targetMargin !== null }}% {{ 'tier ' ~ (s.tier | e) ~ ' ' if s.tier }}target (dashed line).</div>
+    <div class="chart-box" style="height:230px"><canvas id="marginChart"></canvas></div>
+    <script type="application/json" id="marginData">{{ {'points': c.marginTrend, 'target': c.targetMargin} | json | safe }}</script>
   </div>
   <div class="card">
-    <h2>Post-Mortems for This Customer</h2>
-    <div class="kv acc-kv">
-      <div><span>Flagged Jobs</span><b>{{ c.pmProgress.flagged }}</b></div>
-      <div><span>Post-Mortem Completed</span><b>{{ c.pmProgress.done }}</b></div>
-      <div><span>In Progress</span><b>{{ c.pmProgress.started }}</b></div>
-      <div><span>Not Started</span><b>{{ c.pmProgress.pending }}</b></div>
-    </div>
-    <h3 style="margin-top:12px">Root Causes Picked</h3>
-    {% if c.causes.length %}
-    <table data-table="acc-cust-detail" class="t t-fit" data-help-scope="accuracy" style="max-width:520px">
-      <thead><tr><th>Root Cause</th><th class="num">Post-Mortems</th></tr></thead>
-      <tbody>{% for r in c.causes %}<tr><td>{{ r.name }}</td><td class="num">{{ r.n }}</td></tr>{% endfor %}</tbody>
-    </table>
-    {% else %}<div class="muted">No post-mortem for this customer has picked a root cause yet.</div>{% endif %}
+    <h2 style="margin:0">Margin vs Target $ Over Time</h2>
+    <div class="muted" style="margin:4px 0">Dollars above (green) or short of (red) target on the jobs closed in each {{ f.trend }}.</div>
+    <div class="chart-box" style="height:230px"><canvas id="vsTargetChart"></canvas></div>
+    <script type="application/json" id="vsTargetData">{{ {'points': c.marginTrend} | json | safe }}</script>
   </div>
 </div>
 

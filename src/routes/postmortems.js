@@ -25,8 +25,10 @@ export default async function postMortemRoutes(app) {
   app.get('/postmortems', async (req, reply) => {
     const status = ['open', 'done', 'all'].includes(req.query.status) ? req.query.status : 'open';
     const owner = /^\d+$/.test(req.query.owner ?? '') ? req.query.owner : '';
-    const rows = listPostMortems(db, { status: status === 'all' ? '' : status, owner });
-    return reply.page('pm_list.njk', { rows, status, owner, users: activeUsers(db) });
+    const cust = typeof req.query.cust === 'string' ? req.query.cust.trim().slice(0, 60) : ''; // one customer's post-mortems (from the customer page)
+    const rows = listPostMortems(db, { status: status === 'all' ? '' : status, owner, cust });
+    const custLabel = !cust ? '' : cust === '_internal' ? 'Internal / Stock' : db.prepare('SELECT MAX(cust_name) AS n FROM jobs WHERE cust_id = ?').get(cust)?.n || cust;
+    return reply.page('pm_list.njk', { rows, status, owner, cust, custLabel, users: activeUsers(db) });
   });
 
   app.get('/postmortems/:id', async (req, reply) => {

@@ -2,8 +2,8 @@
 {% from "_macros.njk" import presetButtons, dateFields %}
 
 {# KPI tile. value and sub may carry a little markup (they are written by the pages, never by users). #}
-{% macro tile(label, value, sub, cls='') %}
-<div class="tile {{ cls }}"><div class="label">{{ label }}</div><div class="value">{{ value | safe }}</div><div class="sub">{{ sub | safe }}</div></div>
+{% macro tile(label, value, sub, cls='', title='') %}
+<div class="tile {{ cls }}"{% if title %} title="{{ title }}"{% endif %}><div class="label">{{ label }}</div><div class="value">{{ value | safe }}</div><div class="sub">{{ sub | safe }}</div></div>
 {% endmacro %}
 
 {# Filter bar: the same look as the Flagged Jobs filters. ops = show the grouping choices of page 1. #}

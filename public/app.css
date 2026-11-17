@@ -525,8 +525,11 @@ details.card-fold[open] > summary .muted { display: none; }
 
 /* Customers page: six cards in one row (two lines of small print each) */
 .tiles.tiles-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
-.tiles.tiles-6 .tile { padding: 10px 14px 11px; min-width: 0; }
-.tiles.tiles-6 .tile .value { font-size: 1.6rem; white-space: nowrap; }
-.tiles.tiles-6 .tile .sub { font-size: .76rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* two lines, never three: a line that is too long ends in ... */
+.tiles.tiles-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
+.tiles.tiles-7 .tile, .tiles.tiles-6 .tile { padding: 10px 14px 11px; min-width: 0; }
+.tiles.tiles-7 .tile .value, .tiles.tiles-6 .tile .value { font-size: 1.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tiles .value .value-text { font-size: 1.15rem; display: block; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; } /* a name (a root cause) in the place of a number */
+.tiles.tiles-7 .tile .sub, .tiles.tiles-6 .tile .sub { font-size: .76rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* two lines, never three: a line that is too long ends in ... */
 @media (max-width: 1700px) { .tiles.tiles-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 800px) { .tiles.tiles-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1750px) { .tiles.tiles-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .tiles.tiles-6, .tiles.tiles-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
