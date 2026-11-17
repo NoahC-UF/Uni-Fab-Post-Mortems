@@ -62,7 +62,7 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
     options: {
       noCache: process.env.NODE_ENV !== 'production',
       onConfigure(env) {
-        for (const name of ['money', 'smoney', 'smoney0', 'spts', 'money0', 'hrs', 'shrs', 'spct', 'pct', 'qty', 'dateOnly', 'dateTime', 'clockTime']) {
+        for (const name of ['money', 'smoney', 'smoney0', 'smoneyK', 'spts', 'money0', 'hrs', 'shrs', 'spct', 'pct', 'qty', 'dateOnly', 'dateTime', 'clockTime']) {
           env.addFilter(name, fmt[name]);
         }
         // JSON that is safe to place inside a <script> tag (no way to close the tag early)

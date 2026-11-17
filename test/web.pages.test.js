@@ -18,11 +18,11 @@ describe('pages render', () => {
     assert.match(r.body, /id="byOpData"/);
   });
 
-  test('dashboard defaults to the last 30 days', async () => {
+  test('dashboard defaults to the last 90 days', async () => {
     const r = await S.admin.get('/');
     ok(r, 'dashboard default');
     const to = new Date().toISOString().slice(0, 10);
-    const from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     assert.ok(r.body.includes(`value="${from}"`) && r.body.includes(`value="${to}"`));
   });
 

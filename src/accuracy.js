@@ -84,11 +84,17 @@ const flag01 = (v, dflt) => {
   return ['1', 'true', 'on', 'yes'].includes(String(last).toLowerCase());
 };
 
-/** Filters from the query string. The defaults are: the last 12 months, closed jobs only, at least 3 jobs, $ basis. */
-export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}) {
+export const DEFAULT_DAYS = 90; // the pages open on the last 90 days
+
+/**
+ * Filters from the query string. The defaults are: the last 90 days, closed jobs only, at least 3 jobs, $ basis.
+ * customers: true for the Customers page, which opens sorted by Margin vs Target $, Low to High (the customers furthest below their
+ * target first). Everywhere else the lists open on Needs Attention, High to Low.
+ */
+export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}, { customers = false } = {}) {
   const minJobs = Math.round(Number(q.minJobs));
   return {
-    from: validDate(q.from) ?? iso(addDays(now, -365)),
+    from: validDate(q.from) ?? iso(addDays(now, -DEFAULT_DAYS)),
     to: validDate(q.to) ?? iso(now),
     status: pick(q.status, ['closed', 'all'], 'closed'), // 'all' adds in-progress jobs (completed operations and issued material only)
     minJobs: Number.isFinite(minJobs) && minJobs >= 1 && minJobs <= 100 ? minJobs : 3,
@@ -97,8 +103,8 @@ export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}) {
     internal: flag01(q.internal, !settings.excludeNonOrderJobs), // include Internal / Stock jobs (no customer): follows the Settings choice until set here
     opBy: pick(q.opBy, ['op', 'rg'], 'op'),
     mtlBy: pick(q.mtlBy, ['part', 'class'], 'part'),
-    sort: pick(q.sort, SORTS.map((s) => s.id), 'attention'),
-    order: pick(q.order, ORDERS.map((o) => o.id), 'desc'), // desc = the biggest / highest first, asc = the smallest / lowest first
+    sort: pick(q.sort, SORTS.map((s) => s.id), customers ? 'vstarget' : 'attention'),
+    order: pick(q.order, ORDERS.map((o) => o.id), customers ? 'asc' : 'desc'), // desc = the biggest / highest first, asc = the smallest / lowest first
     trend: pick(q.trend, ['month', 'quarter'], 'month'),
     lists: pick(q.lists, LIST_VIEWS.map((l) => l.id), 'over'), // which top lists to show: over, under, both side by side (h) or both stacked (v)
     cust: typeof q.cust === 'string' ? q.cust.trim().slice(0, 60) : '', // limit the page to one customer (the customer page's own lists link here)
@@ -672,6 +678,15 @@ export function customersPage(db, f) {
   const soldTotal = sold.reduce((t, g) => t + g.price, 0);
   shop.targetMargin = soldTotal > 0 ? r4(sold.reduce((t, g) => t + g.price * g.target, 0) / soldTotal) : tctx.settings.targetMarginPct / 100;
   shop.vsTarget = shop.margin === null ? null : r2(sold.reduce((t, g) => t + g.vsTarget, 0));
+  // the figures for the cards at the top of the page
+  shop.pricedCustomers = sold.length; // customers with a margin (at least one priced closed job)
+  shop.underTarget = sold.filter((g) => g.vsTarget !== null && g.vsTarget < 0).length; // of them, how many are below their own target
+  const losing = sold.filter((g) => g.margin < 0);
+  shop.lossCustomers = losing.length; // customers that lost money over the period
+  shop.lossDollars = r2(losing.reduce((t, g) => t + g.margin, 0)); // what they lost between them (negative)
+  shop.labourDollars = r2(groups.reduce((t, g) => t + g.labourDollars, 0)); // the net variance split: labour, material and the rest
+  shop.materialDollars = r2(groups.reduce((t, g) => t + g.materialDollars, 0));
+  shop.otherDollars = r2(shop.netDollars - shop.labourDollars - shop.materialDollars);
   const ranked = rankGroups(groups.map((g) => ({ ...g, kind: 'customer', avgPct: g.avgPct })), f, f.top ?? TOP_CUSTOMERS);
   const eligible = groups.filter((g) => g.jobs >= f.minJobs);
   return {
@@ -697,7 +712,7 @@ function shopFigures(jobs) {
   const off = jobs.filter((j) => j.off).length;
   const est = jobs.reduce((t, j) => t + j.estFull, 0);
   const v = jobs.reduce((t, j) => t + j.varFull, 0);
-  return { ...marginOf(jobs), jobs: n, pctOff: n ? r4(off / n) : 0, accuracy: n ? r4(1 - off / n) : null, avgPct: est > 0 ? r4(v / est) : null, netDollars: r2(v), grossDollars: r2(jobs.reduce((t, j) => t + Math.abs(j.varFull), 0)) };
+  return { ...marginOf(jobs), jobs: n, off, pctOff: n ? r4(off / n) : 0, accuracy: n ? r4(1 - off / n) : null, avgPct: est > 0 ? r4(v / est) : null, netDollars: r2(v), grossDollars: r2(jobs.reduce((t, j) => t + Math.abs(j.varFull), 0)) };
 }
 
 /** One customer in full: summary, trend, top operations and materials, repeat parts, job list, post-mortem progress and root causes. */

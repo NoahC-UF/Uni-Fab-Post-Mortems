@@ -30,7 +30,7 @@ export default async function dashboardRoutes(app) {
   const { db, now } = app.ctx;
 
   app.get('/', async (req, reply) => {
-    const f = parseFilters(req.query, now(), 30);
+    const f = parseFilters(req.query, now(), 90);
     const dir = ['over', 'under'].includes(req.query.dir) ? req.query.dir : ''; // '' = both (the default)
     const d = dashboardData(db, f, now(), dir);
     const presets = presetRanges(now()).map((p) => ({ ...p, on: p.from === f.from && p.to === f.to, href: `/?from=${p.from}&to=${p.to}${dir ? `&dir=${dir}` : ''}` }));

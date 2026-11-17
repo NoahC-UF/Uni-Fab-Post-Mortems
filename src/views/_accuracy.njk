@@ -17,6 +17,7 @@
   <div class="row acc-datebar"><div class="date-tools">{{ presetButtons(presets) }}<span class="muted">|</span><span class="date-range">{{ dateFields(f.from, f.to) }}</span></div></div>
   <div class="card acc-filters">
   <div class="filters">
+    {# First group: which jobs and customers are counted. Second group (after the divider): how the lists are shown. #}
     {% if org %}
     {# Tier: tick one or more tiers (A and B, say); nothing ticked = all tiers #}
     <div class="multi-field">Tier
@@ -28,18 +29,13 @@
         </div>
       </div>
     </div>
-    <label>Account Manager
+    <label class="f-wide">Account Manager
       <select name="mgr">
         <option value="">All Account Managers</option>
         {% for m in org.managers %}<option value="{{ m }}" {{ 'selected' if f.mgr == m }}>{{ m }}</option>{% endfor %}
         <option value="_unassigned" {{ 'selected' if f.mgr == '_unassigned' }}>Unassigned</option>
         <option value="_none" {{ 'selected' if f.mgr == '_none' }}>Not on the List</option>
       </select>
-    </label>
-    {% endif %}
-    {% if tops.length %}
-    <label>Show
-      <select name="top" title="How many customers each list shows">{% for n in tops %}<option value="{{ n }}" {{ 'selected' if f.top == n }}>Top {{ n }}</option>{% endfor %}</select>
     </label>
     {% endif %}
     <label>Jobs
@@ -51,12 +47,31 @@
     <label>Variance Basis
       <select name="basis">{% for b in bases %}<option value="{{ b.id }}" {{ 'selected' if f.basis == b.id }}>{{ b.label }}</option>{% endfor %}</select>
     </label>
-    <label>Minimum Jobs <input type="number" name="minJobs" min="1" max="100" step="1" value="{{ f.minJobs }}" title="Groups with fewer jobs than this are left out of the lists"></label>
+    <label class="f-narrow">Minimum Jobs <input type="number" name="minJobs" min="1" max="100" step="1" value="{{ f.minJobs }}" title="Groups with fewer jobs than this are left out of the lists"></label>
+    {# Other Options: the two tick boxes that used to sit at the end of the row. Each has a hidden 0 in front so that unticked is sent too #}
+    <div class="multi-field">Other Options
+      <div class="multi" x-data="{ open: false, outliers: {{ 'true' if f.outliers else 'false' }}, internal: {{ 'true' if f.internal else 'false' }}, text() { var n = (this.outliers ? 1 : 0) + (this.internal ? 1 : 0); return n === 0 ? 'None Selected' : n + ' Selected'; } }" @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" class="multi-btn" @click="open = !open" :aria-expanded="open" aria-haspopup="true" x-text="text()">{{ 'None Selected' if not (f.outliers or f.internal) else ((2 if (f.outliers and f.internal) else 1) ~ ' Selected') }}</button>
+        <div class="multi-menu" x-show="open" x-cloak>
+          <label class="check" title="Leaves out single lines more than 300% off, so one bad clock-in or mis-issued part does not distort the ranking"><input type="hidden" name="outliers" value="0"><input type="checkbox" name="outliers" x-model="outliers" {{ 'checked' if f.outliers }}> Exclude Outliers (Over ±300%)</label>
+          <label class="check" title="Jobs that have no customer or no sales order: stock, maintenance, internal"><input type="hidden" name="internal" value="0"><input type="checkbox" name="internal" x-model="internal" {{ 'checked' if f.internal }}> Include Internal / Stock Jobs</label>
+        </div>
+      </div>
+    </div>
+    <span class="filter-sep" aria-hidden="true"></span>
+    {% if tops.length %}
+    <label class="f-narrow">Show
+      <select name="top" title="How many customers each list shows">{% for n in tops %}<option value="{{ n }}" {{ 'selected' if f.top == n }}>Top {{ n }}</option>{% endfor %}</select>
+    </label>
+    {% endif %}
     <label>Sort Lists By
       <select name="sort">{% for s in sorts %}<option value="{{ s.id }}" {{ 'selected' if f.sort == s.id }}>{{ s.label }}</option>{% endfor %}</select>
     </label>
     <label>Sort Order
       <select name="order">{% for o in orders %}<option value="{{ o.id }}" {{ 'selected' if f.order == o.id }}>{{ o.label }}</option>{% endfor %}</select>
+    </label>
+    <label class="f-narrow">Trend By
+      <select name="trend"><option value="month" {{ 'selected' if f.trend == 'month' }}>Month</option><option value="quarter" {{ 'selected' if f.trend == 'quarter' }}>Quarter</option></select>
     </label>
     {% if ops %}
     <label>Group Operations By
@@ -66,11 +81,6 @@
       <select name="mtlBy"><option value="part" {{ 'selected' if f.mtlBy == 'part' }}>Part Number</option><option value="class" {{ 'selected' if f.mtlBy == 'class' }}>Material Class</option></select>
     </label>
     {% endif %}
-    <label>Trend By
-      <select name="trend"><option value="month" {{ 'selected' if f.trend == 'month' }}>Month</option><option value="quarter" {{ 'selected' if f.trend == 'quarter' }}>Quarter</option></select>
-    </label>
-    <label class="check" title="Leaves out single lines more than 300% off, so one bad clock-in or mis-issued part does not distort the ranking"><input type="hidden" name="outliers" value="0"><input type="checkbox" name="outliers" value="1" {{ 'checked' if f.outliers }}> Exclude Outliers (Over ±300%)</label>
-    <label class="check" title="Jobs that have no customer or no sales order: stock, maintenance, internal"><input type="hidden" name="internal" value="0"><input type="checkbox" name="internal" value="1" {{ 'checked' if f.internal }}> Include Internal / Stock Jobs</label>
     <div class="filter-actions"><a class="btn" href="{{ action }}">Reset</a><button class="btn btn-primary" type="submit">Apply Filters</button></div>
   </div>
   </div>

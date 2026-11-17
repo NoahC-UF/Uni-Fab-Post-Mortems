@@ -17,7 +17,7 @@ export default async function accuracyRoutes(app) {
   // Margin sorts only mean something for customers: on operations / materials (and inside one customer) the default sort is used instead.
   const MARGIN_SORTS = ['margin', 'marginpct', 'vstarget'];
   const filters = (req, margins = false) => {
-    const f = parseAccuracyFilters(req.query, now(), getSettings(db));
+    const f = parseAccuracyFilters(req.query, now(), getSettings(db), { customers: margins });
     return !margins && MARGIN_SORTS.includes(f.sort) ? { ...f, sort: 'attention' } : f;
   };
   // listLinks: the page's address for each choice of the "Show" list picker, keeping every other filter (and the open drill-down)
@@ -67,7 +67,7 @@ export default async function accuracyRoutes(app) {
   app.get('/accuracy/customers/:cust', async (req, reply) => {
     // one customer in full: the tier / account manager filters do not apply (they pick customers; this is one), but they are kept in the links back
     const kept = { ...filters(req, true), cust: '' };
-    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'attention' : kept.sort };
+    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'attention' : kept.sort, order: MARGIN_SORTS.includes(kept.sort) ? 'desc' : kept.order };
     const key = String(req.params.cust).slice(0, 60);
     const c = customerDetail(db, f, key);
     if (!c) throw notFound('That customer has no jobs for these filters.');

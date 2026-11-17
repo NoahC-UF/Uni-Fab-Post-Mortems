@@ -243,7 +243,7 @@ describe('Tier and Account Manager filters, and the quick date buttons', () => {
     const none = (await S.admin.get(`/accuracy/customers?${q}`)).body;
     assert.ok(!none.includes('Showing only'));
     const dflt = (await S.admin.get('/accuracy/customers')).body;
-    assert.match(dflt, /<a class="btn btn-sm btn-primary" href="[^"]+">Last 12 months<\/a>/, 'the default range is the highlighted button');
+    assert.match(dflt, /<a class="btn btn-sm btn-primary" href="[^"]+">Last 90 days<\/a>/, 'the default range is the highlighted button');
   });
 
   test('a date button changes the dates and nothing else', async () => {
@@ -313,7 +313,7 @@ describe('the Customers page is kept compact', () => {
     const body = (await S.admin.get('/accuracy/customers')).body;
     assert.ok(!body.includes('acc-note'), 'the long note under the tiles is gone');
     assert.ok(!body.includes("Which customers' jobs, taken as a whole"), 'the paragraph under the title is gone');
-    assert.ok(body.includes('<h1 class="acc-title">Post-Mortem Review: Customers</h1>') && body.includes('Customers CSV') && body.includes('class="tiles"'));
+    assert.ok(body.includes('<h1 class="acc-title">Post-Mortem Review: Customers</h1>') && body.includes('Customers CSV') && body.includes('class="tiles tiles-6"'));
   });
 });
 
@@ -367,7 +367,8 @@ describe('sorting the customer lists by margin, in either direction', () => {
   test('the page offers Margin $ / Margin % and a Sort Order; Ops & Materials only the sorts that apply to it', async () => {
     const cust = (await S.admin.get('/accuracy/customers')).body;
     assert.match(cust, /<select name="sort">[\s\S]*<option value="margin" >Margin \$<\/option>[\s\S]*<option value="marginpct" >Margin %<\/option>/);
-    assert.match(cust, /<select name="order">\s*<option value="desc" selected>High to Low<\/option>\s*<option value="asc" >Low to High<\/option>/);
+    assert.match(cust, /<select name="order">\s*<option value="desc" >High to Low<\/option>\s*<option value="asc" selected>Low to High<\/option>/, 'the Customers page opens on Low to High');
+    assert.match(cust, /<option value="vstarget" selected>Margin vs Target \$<\/option>/, 'and on Margin vs Target $');
     const sel = (await S.admin.get('/accuracy/customers?sort=marginpct&order=asc')).body;
     assert.match(sel, /<option value="marginpct" selected>Margin %<\/option>/);
     assert.match(sel, /<option value="asc" selected>Low to High<\/option>/);
@@ -434,7 +435,7 @@ describe('Margin vs Target $: the number that weighs margin $ and margin % toget
   test('the column, its tooltip and the sort choice are on the page; Ops & Materials does not offer it', async () => {
     const body = (await S.admin.get('/accuracy/customers?minJobs=1')).body;
     assert.ok(body.includes('Margin vs Target $'));
-    assert.match(body, /<option value="vstarget" >Margin vs Target \$<\/option>/);
+    assert.match(body, /<option value="vstarget" selected>Margin vs Target \$<\/option>/);
     assert.ok(body.includes('dollars short of target') || body.includes('Red = dollars short of target'));
     const ops = (await S.admin.get('/accuracy/ops?sort=vstarget')).body;
     assert.ok(!/<option value="vstarget"/.test(ops));

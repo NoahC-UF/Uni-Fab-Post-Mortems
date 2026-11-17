@@ -67,6 +67,18 @@ export function smoney0(v) {
   return `${n > 0 ? '+' : '-'}$${f0.format(Math.abs(n))}`;
 }
 
+/** A short signed amount for small print: +$201k, -$2k, +$1.2M; under $1,000 it is the whole dollars (+$905). */
+export function smoneyK(v) {
+  if (!isNum(v)) return '';
+  const n = Number(v);
+  const abs = Math.abs(n);
+  const sign = n > 0 ? '+' : '-';
+  if (Math.round(abs) === 0) return '$0';
+  if (abs >= 999500) return `${sign}$${(abs / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+  if (abs >= 1000) return `${sign}$${Math.round(abs / 1000)}k`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
 export function qty(v) {
   return isNum(v) ? fq.format(Number(v)) : '';
 }

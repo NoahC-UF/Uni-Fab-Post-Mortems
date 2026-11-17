@@ -467,17 +467,21 @@ details.fold small { font-weight: 400; }
 .acc-attn { font-weight: 700; color: var(--red); }
 .acc-compare { margin-bottom: 14px; }
 .acc-drill { border-color: var(--brand-2); }
-/* Quote Accuracy / Post-Mortem Review filters: smaller text and boxes so they fit on one line (they wrap only on a narrow window) */
+/* Quote Accuracy / Post-Mortem Review filters: one row. Every field has the same label size and the same box height and text size,
+   so they line up; the fields share the width (and wrap onto a second row only on a narrow window). */
 .acc-title { font-size: 1.95rem; margin: 0; line-height: 1.15; }
 .acc-head { align-items: center; }
 .acc-filters { padding: 10px 14px; }
-.acc-filters .filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
-.acc-filters .filters label { gap: 2px; font-size: .74rem; }
-.acc-filters .filters select, .acc-filters .filters input:not([type=checkbox]):not([type=hidden]) { padding: 3px 7px; font-size: .8rem; width: auto; min-width: 0; }
-.acc-filters .filters input[name=minJobs] { width: 4.2rem; }
-.acc-filters .check { align-self: center; flex-direction: row; align-items: center; display: flex; gap: 5px; white-space: nowrap; font-size: .76rem; }
-.acc-filters .filters .filter-actions { grid-column: auto; margin-left: auto; gap: 6px; }
-.acc-filters .filters .filter-actions .btn { padding: 3px 12px; font-size: .82rem; }
+.acc-filters .filters { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; }
+.acc-filters .filters > label, .acc-filters .filters > .multi-field { flex: 1 1 128px; max-width: 210px; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: .74rem; font-weight: 600; }
+.acc-filters .filters > .f-narrow { flex: 0 1 98px; }
+.acc-filters .filters > .f-wide { flex-basis: 168px; max-width: 230px; }
+.acc-filters .filters select, .acc-filters .filters input:not([type=checkbox]):not([type=hidden]), .acc-filters .multi-btn { box-sizing: border-box; width: 100%; min-width: 0; max-width: none; height: 30px; padding: 0 8px; font-size: .8rem; font-weight: 400; line-height: 28px; }
+.acc-filters .multi-btn { padding-right: 24px; }
+.acc-filters .multi-menu .check { font-size: .8rem; }
+.acc-filters .filter-sep { align-self: stretch; width: 1px; margin: 0 4px; background: var(--line); }
+.acc-filters .filters .filter-actions { grid-column: auto; margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.acc-filters .filters .filter-actions .btn { height: 30px; box-sizing: border-box; padding: 0 12px; font-size: .8rem; display: inline-flex; align-items: center; }
 .acc-stack { display: grid; gap: 18px; }
 .acc-pick { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .acc-pick select { width: auto; min-width: 210px; }
@@ -518,3 +522,11 @@ details.card-fold > summary::before { content: "\25B8"; display: inline-block; t
 details.card-fold[open] > summary::before { transform: rotate(90deg); }
 details.card-fold > summary h2 { margin: 0; }
 details.card-fold[open] > summary .muted { display: none; }
+
+/* Customers page: six cards in one row (two lines of small print each) */
+.tiles.tiles-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.tiles.tiles-6 .tile { padding: 10px 14px 11px; min-width: 0; }
+.tiles.tiles-6 .tile .value { font-size: 1.6rem; white-space: nowrap; }
+.tiles.tiles-6 .tile .sub { font-size: .76rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* two lines, never three: a line that is too long ends in ... */
+@media (max-width: 1700px) { .tiles.tiles-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .tiles.tiles-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -18,12 +18,24 @@
 
 {% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
 
-<div class="tiles">
-  {{ tile('Customers With Jobs', d.customers, d.jobCount ~ ' jobs in range', '') }}
-  {{ tile('Needs Attention', d.attentionCount, 'of ' ~ d.customers ~ ' customers', 't-yellow') }}
-  {{ tile('Net Variance', (d.shop.netDollars | smoney0), 'all customers &middot; gross ' ~ (d.shop.grossDollars | money0), 't-red' if d.shop.netDollars > 0 else 't-blue') }}
-  {{ tile('Margin', ((d.shop.marginPct * 100) | round(1) ~ '%') if d.shop.marginPct !== null else 'n/a', ((d.shop.margin | smoney0) ~ ' on ' ~ (d.shop.price | money0) ~ ' sold &middot; target ' ~ ((d.shop.targetMargin * 100) | round(1)) ~ '% (by tier)') if d.shop.pricedJobs else 'no priced closed jobs', 't-green' if d.shop.marginPct !== null and d.shop.marginPct >= d.shop.targetMargin else 't-yellow') }}
-  {{ tile('Customer-Level Accuracy', (d.shop.accuracy | pct) if d.shop.accuracy !== null else 'n/a', (d.shop.pctOff | pct) ~ ' of jobs off, shop-wide', 't-green' if d.shop.accuracy !== null and d.shop.accuracy >= 0.8 else 't-yellow') }}
+<div class="tiles tiles-6">
+  {% set s = d.shop %}
+  {# Colours: green = good, yellow = below target / a warning, red = a loss or an overrun, blue = just information. #}
+  {{ tile('Sold', (s.price | money0) if s.pricedJobs else 'n/a',
+      d.customers ~ ' customers &middot; ' ~ d.jobCount ~ ' jobs' ~ ('<br>' ~ s.pricedJobs ~ ' closed and priced' if s.pricedJobs else ''), 't-blue') }}
+  {{ tile('Margin', ((s.marginPct * 100) | round(1) ~ '%') if s.marginPct !== null else 'n/a',
+      (((((s.marginPct - s.targetMargin) * 100) | abs | round(1)) ~ ' pts ' ~ ('under' if s.marginPct < s.targetMargin else 'over') ~ ' ' ~ ((s.targetMargin * 100) | round(1)) ~ '% target<br>' ~ (s.margin | smoney0) ~ ' made') if s.pricedJobs else 'no priced closed jobs'),
+      't-red' if s.marginPct !== null and s.marginPct < 0 else ('t-green' if s.marginPct !== null and s.marginPct >= s.targetMargin else 't-yellow')) }}
+  {{ tile('Margin vs Target $', (s.vsTarget | smoney0) if s.vsTarget !== null else 'n/a',
+      (s.underTarget ~ ' of ' ~ s.pricedCustomers ~ ' customers under target<br>dollars vs their tier targets') if s.pricedJobs else 'no priced closed jobs',
+      't-red' if s.vsTarget !== null and s.vsTarget < 0 else ('t-green' if s.vsTarget !== null else '')) }}
+  {{ tile('Customers at a Loss', (s.lossDollars | smoney0) if s.pricedJobs else 'n/a',
+      (s.lossCustomers ~ ' of ' ~ s.pricedCustomers ~ ' customers lost money<br>their margins added up') if s.pricedJobs else 'no priced closed jobs',
+      't-red' if s.lossCustomers else 't-green') }}
+  {{ tile('Net Variance', (s.netDollars | smoney0),
+      'gross ' ~ (s.grossDollars | money0) ~ '<br>labour ' ~ (s.labourDollars | smoneyK) ~ ' &middot; material ' ~ (s.materialDollars | smoneyK) ~ ' &middot; other ' ~ (s.otherDollars | smoneyK),
+      't-red' if s.netDollars > 0 else 't-blue') }}
+  {{ tile('Customer-Level Accuracy', (s.accuracy | pct) if s.accuracy !== null else 'n/a', (s.pctOff | pct) ~ ' of jobs off, shop-wide<br>' ~ s.off ~ ' of ' ~ s.jobs ~ ' jobs were off', 't-green' if s.accuracy !== null and s.accuracy >= 0.8 else 't-yellow') }}
 </div>
 <div class="card">
   <div class="page-head" style="margin-bottom:8px">

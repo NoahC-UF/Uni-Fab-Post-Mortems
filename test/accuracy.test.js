@@ -135,7 +135,7 @@ describe('calculations on hand-made lines', () => {
   test('filters: defaults, limits and links', () => {
     const f = parseAccuracyFilters({}, NOW, {});
     assert.equal(f.to, '2026-06-15');
-    assert.equal(f.from, '2025-06-15', 'the last 12 months');
+    assert.equal(f.from, '2026-03-17', 'the last 90 days');
     assert.equal(f.status, 'closed');
     assert.equal(f.minJobs, 3);
     assert.equal(f.basis, 'dollars');
@@ -514,7 +514,7 @@ describe('the pages in the browser', () => {
   test('Customers renders, and a customer opens in full', async () => {
     const r = await S.reviewer.get(`/accuracy/customers?${q}`);
     assert.equal(r.statusCode, 200);
-    for (const t of ['Customers With Jobs', 'Customer-Level Accuracy', 'Top 25 Customers: Jobs Over Estimates', 'How Often vs How Far Off']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Sold', 'Margin vs Target $', 'Customers at a Loss', 'Net Variance', 'Customer-Level Accuracy', 'Top 25 Customers: Jobs Over Estimates', 'How Often vs How Far Off']) assert.ok(r.body.includes(t), t);
     assert.match(r.body, /id="bubbleData"/);
     const link = /data-href="(\/accuracy\/customers\/[^"?]+)\?/.exec(r.body);
     assert.ok(link, 'rows link to the customer');
