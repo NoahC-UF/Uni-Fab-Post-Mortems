@@ -375,7 +375,7 @@ describe('sorting the customer lists by margin, in either direction', () => {
 
     const ops = (await S.admin.get('/accuracy/ops?sort=margin&order=asc')).body;
     assert.ok(!/<option value="margin"/.test(ops), 'no margin sorts on operations and materials');
-    assert.match(ops, /<option value="attention" selected>/, 'a margin sort carried over from Customers falls back to the default');
+    assert.match(ops, /<option value="excess" selected>/, 'a margin sort carried over from Customers falls back to the default');
     assert.match(ops, /<option value="asc" selected>Low to High<\/option>/, 'but the order is kept');
   });
 
@@ -385,7 +385,7 @@ describe('sorting the customer lists by margin, in either direction', () => {
     assert.ok(hrefs.length > 6);
     for (const h of hrefs.slice(0, 8)) assert.ok(h.includes('sort=margin') && h.includes('order=asc'), h);
     const detail = (await S.admin.get(hrefs.find((h) => /^\/accuracy\/customers\/[^?]+\?/.test(h)))).body;
-    assert.match(detail, /<option value="attention" selected>/, 'one customer\'s operation and material lists use the default sort');
+    assert.match(detail, /<option value="excess" selected>/, 'one customer\'s operation and material lists use the default sort');
     assert.ok(detail.includes('sort=margin&amp;order=asc') || detail.includes('sort=margin&order=asc'), 'the way back to the customers list keeps the margin sort');
   });
 });
@@ -439,7 +439,7 @@ describe('Margin vs Target $: the number that weighs margin $ and margin % toget
     assert.ok(body.includes('dollars short of target') || body.includes('Red = dollars short of target'));
     const ops = (await S.admin.get('/accuracy/ops?sort=vstarget')).body;
     assert.ok(!/<option value="vstarget"/.test(ops));
-    assert.match(ops, /<option value="attention" selected>/);
+    assert.match(ops, /<option value="excess" selected>/);
     assert.ok(accuracyCsv(S.db, F3(), 'customers').split('\r\n')[0].includes('Margin vs Target $'));
   });
 });

@@ -101,8 +101,8 @@
 {# "x of y jobs" under a percentage #}
 {% macro offcell(g) %}<b>{{ g.pctOff | pct }}</b> <small class="muted">{{ g.jobsOff }} of {{ g.jobs }}</small>{% endmacro %}
 
-{# Attention score cell; marked when the group needs attention #}
-{% macro attncell(g) %}<span class="{{ 'acc-attn' if g.needsAttention }}" title="{{ 'Needs attention: ' if g.needsAttention else '' }}{{ g.grossDollars | money0 }} gross variance x {{ g.pctOff | pct }} of jobs off">{{ g.attention | money0 }}</span>{% endmacro %}
+{# Excess $ cell: the variance dollars beyond the green band (red = over the estimate, green = under it, grey = inside the band) #}
+{% macro excesscell(g) %}<span class="{{ 'neg-bad' if g.excess > 0 else ('neg-good' if g.excess < 0 else 'muted') }}" title="{{ (g.netDollars | smoney0) }} net variance, less the {{ (g.tolerance * 100) | round(1) }}% green band on {{ g.estDollars | money0 }} estimated">{{ g.excess | smoney0 }}</span>{% endmacro %}
 
 {# Operations table. rows = groups; href = link prefix for a row ('...&drill=op:' is added here). #}
 {% macro opTable(rows, base, selected, label='Operation') %}
@@ -110,7 +110,8 @@
   <thead><tr>
     <th data-help="The operation code, or the resource group if you grouped by that. Click a row to see its setup / run split, trend, part numbers and jobs.">{{ label }}</th>
     <th class="num">Jobs</th><th class="num">Est Hrs</th><th class="num">Actual Hrs</th><th class="num">Var Hrs</th>
-    <th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th><th class="num">Attention Score</th>
+    <th class="num" data-help="Estimated dollars: the expected hours x (labour + burden rate), added up. The same hours as Est Hrs, in dollars.">Est $</th><th class="num" data-help="Actual dollars: the hours actually booked x (labour + burden rate), added up. The same hours as Actual Hrs, in dollars.">Act $</th>
+    <th class="num">Net Var $</th><th class="num">Excess $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
   </tr></thead>
   <tbody>
   {% for g in rows %}
@@ -118,14 +119,14 @@
       <td><a href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<br><small class="muted">{{ g.description }}</small>{% endif %}</td>
       <td class="num">{{ g.jobs }}</td><td class="num">{{ g.estHrs | hrs }}</td><td class="num">{{ g.actHrs | hrs }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.varHrs > 0 else ('neg-good' if g.varHrs < 0 else 'muted') }}">{{ g.varHrs | shrs }}</span></td>
+      <td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
-      <td class="num">{{ g.grossDollars | money0 }}</td>
+      <td class="num">{{ excesscell(g) }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
       <td class="num">{{ offcell(g) }}</td>
-      <td class="num">{{ attncell(g) }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="10" class="muted">Nothing here for these filters.</td></tr>
+    <tr><td colspan="11" class="muted">Nothing here for these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>
@@ -137,7 +138,7 @@
   <thead><tr>
     <th data-help="The material part number, or its class if you grouped by that. Click a row to see its usage / price split, trend, part numbers and jobs.">{{ label }}</th>
     <th class="num">Jobs</th><th class="num">Exp Qty</th><th class="num">Issued Qty</th><th class="num">Est $</th><th class="num">Act $</th>
-    <th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th><th class="num">Attention Score</th>
+    <th class="num">Net Var $</th><th class="num">Excess $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
   </tr></thead>
   <tbody>
   {% for g in rows %}
@@ -146,13 +147,12 @@
       <td class="num">{{ g.jobs }}</td><td class="num">{{ g.expQty | qty }}</td><td class="num">{{ g.actQty | qty }}</td>
       <td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
-      <td class="num">{{ g.grossDollars | money0 }}</td>
+      <td class="num">{{ excesscell(g) }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
       <td class="num">{{ offcell(g) }}</td>
-      <td class="num">{{ attncell(g) }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="11" class="muted">Nothing here for these filters.</td></tr>
+    <tr><td colspan="10" class="muted">Nothing here for these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

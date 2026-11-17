@@ -25,12 +25,12 @@ describe('the pages open on the last 90 days', () => {
 });
 
 describe('the Customers page opens sorted by Margin vs Target $, Low to High', () => {
-  test('only on the Customers page: everywhere else it is Needs Attention, High to Low', () => {
+  test('only on the Customers page: everywhere else it is Excess $, High to Low', () => {
     const c = parseAccuracyFilters({}, NOW, {}, { customers: true });
     assert.equal(c.sort, 'vstarget');
     assert.equal(c.order, 'asc');
     const o = parseAccuracyFilters({}, NOW, {});
-    assert.equal(o.sort, 'attention');
+    assert.equal(o.sort, 'excess');
     assert.equal(o.order, 'desc');
   });
 
@@ -118,7 +118,7 @@ describe('the filter row', () => {
     const detail = (await S.admin.get(`/accuracy/customers/${key}?${q}`)).body;
     assert.match(detail, /<option value="desc" selected>High to Low<\/option>/, 'one customer page: High to Low');
     const ops = (await S.admin.get(`/accuracy/ops?${q}&sort=vstarget`)).body;
-    assert.match(ops, /<option value="attention" selected>Needs Attention<\/option>/, 'a margin sort is not offered on Ops, so it falls back');
+    assert.match(ops, /<option value="excess" selected>Excess \$<\/option>/,'a margin sort is not offered on Ops, so it falls back');
     assert.match(ops, /<option value="desc" selected>High to Low<\/option>/, 'and the order goes back to High to Low with it');
   });
 });

@@ -145,7 +145,7 @@ describe('calculations on hand-made lines', () => {
     assert.equal(parseAccuracyFilters({ internal: '1' }, NOW, { excludeNonOrderJobs: true }).internal, true);
     assert.equal(parseAccuracyFilters({ internal: ['0', '1'] }, NOW, {}).internal, true, 'a ticked box sends 0 then 1');
     const bad = parseAccuracyFilters({ status: 'x', basis: 'y', minJobs: '0', sort: 'z', opBy: 'q', from: 'nope' }, NOW, {});
-    assert.deepEqual([bad.status, bad.basis, bad.minJobs, bad.sort, bad.opBy], ['closed', 'dollars', 3, 'attention', 'op']);
+    assert.deepEqual([bad.status, bad.basis, bad.minJobs, bad.sort, bad.opBy], ['closed', 'dollars', 3, 'excess', 'op']);
     const link = new URLSearchParams(filterLink(f, { drill: 'op:WELD' }));
     assert.equal(link.get('drill'), 'op:WELD');
     assert.equal(link.get('from'), f.from);
@@ -397,7 +397,7 @@ describe('the pages in the browser', () => {
   test('Operations & Materials renders every part', async () => {
     const r = await S.reviewer.get(`/accuracy/ops?${q}`);
     assert.equal(r.statusCode, 200);
-    for (const t of ['Labour Variance', 'Material Variance', 'Operation Accuracy', 'Material Accuracy', 'Needs Attention', 'Top 10 Operations: Jobs Over Estimates', 'Top 10 Materials: Jobs Over Estimates', 'Biggest Net Variances', 'Unestimated Work', 'Attention Score']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Labour Variance', 'Material Variance', 'Operation Accuracy', 'Material Accuracy', 'Needs Attention', 'Top 10 Operations: Jobs Over Estimates', 'Top 10 Materials: Jobs Over Estimates', 'Biggest Net Variances', 'Unestimated Work', 'Excess $']) assert.ok(r.body.includes(t), t);
     assert.match(r.body, /id="divData"/);
     assert.match(r.body, /name="outliers"/);
     assert.match(r.body, /name="minJobs"/);

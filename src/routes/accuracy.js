@@ -18,7 +18,7 @@ export default async function accuracyRoutes(app) {
   const MARGIN_SORTS = ['margin', 'marginpct', 'vstarget'];
   const filters = (req, margins = false) => {
     const f = parseAccuracyFilters(req.query, now(), getSettings(db), { customers: margins });
-    return !margins && MARGIN_SORTS.includes(f.sort) ? { ...f, sort: 'attention' } : f;
+    return !margins && MARGIN_SORTS.includes(f.sort) ? { ...f, sort: 'excess' } : f;
   };
   // listLinks: the page's address for each choice of the "Show" list picker, keeping every other filter (and the open drill-down)
   const listLinks = (f, extra = {}) => Object.fromEntries(LIST_VIEWS.map((l) => [l.id, filterLink(f, { ...extra, lists: l.id })]));
@@ -60,14 +60,16 @@ export default async function accuracyRoutes(app) {
 
   // ---------------------------------------------------------------- page 2: customers
   app.get('/accuracy/customers', async (req, reply) => {
-    const f = { ...filters(req, true), cust: '' };
-    return reply.page('accuracy_customers.njk', { ...shared(f, undefined, '/accuracy/customers'), sorts: SORTS, tops: TOP_CHOICES, d: customersPage(db, f) });
+    const base = filters(req, true);
+    // Excess $ ranks operations and materials; a customer list asked for it (an old link) opens on the customer default instead
+    const f = { ...base, cust: '', ...(base.sort === 'excess' ? { sort: 'vstarget', order: 'asc' } : {}) };
+    return reply.page('accuracy_customers.njk', { ...shared(f, undefined, '/accuracy/customers'), sorts: SORTS.filter((s) => !s.lists), tops: TOP_CHOICES, d: customersPage(db, f) });
   });
 
   app.get('/accuracy/customers/:cust', async (req, reply) => {
     // one customer in full: the tier / account manager filters do not apply (they pick customers; this is one), but they are kept in the links back
     const kept = { ...filters(req, true), cust: '' };
-    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'attention' : kept.sort, order: MARGIN_SORTS.includes(kept.sort) ? 'desc' : kept.order };
+    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'excess' : kept.sort, order: MARGIN_SORTS.includes(kept.sort) ? 'desc' : kept.order };
     const key = String(req.params.cust).slice(0, 60);
     const c = customerDetail(db, f, key);
     if (!c) throw notFound('That customer has no jobs for these filters.');
