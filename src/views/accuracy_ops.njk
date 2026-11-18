@@ -17,7 +17,10 @@
   </div>
 </div>
 
-{{ filterBar(f, '/accuracy/ops', sorts, bases, true, hidden, presets, org, orders) }}
+{% set jump = [{ 'id': 'sec-top', 'label': 'Overview' }] %}
+{% if dd %}{% set _ = jump.push({ 'id': 'drill', 'label': 'Drill-Down' }) %}{% endif %}
+{% set _ = jump.push({ 'id': 'sec-ops', 'label': 'Operations' }) %}{% set _ = jump.push({ 'id': 'sec-mtl', 'label': 'Materials' }) %}{% set _ = jump.push({ 'id': 'sec-chart', 'label': 'Biggest Net Variances' }) %}{% set _ = jump.push({ 'id': 'sec-unest', 'label': 'Unestimated Work' }) %}
+{{ filterBar(f, '/accuracy/ops', sorts, bases, true, hidden, presets, org, orders, [], jump) }}
 {{ orgNote(f, '/accuracy/ops', baseNoOrg) }}
 
 {% if custLabel %}
@@ -100,12 +103,12 @@
   <div class="table-wrap">
   <table data-table="acc-drill" class="t t-fit acc-table" data-help-scope="accuracy">
     <thead><tr>
-      <th>Part</th><th class="num">Jobs</th><th class="num">Jobs Off</th><th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">Attention Score</th><th>Repeat</th>
+      <th class="acc-descol acc-descol-wide">Part</th><th class="num">Jobs</th><th class="num">Jobs Off</th><th class="num">Net Var $</th><th class="num">Gross Var $</th><th class="num">Avg Var %</th><th class="num">Attention Score</th><th>Repeat</th>
     </tr></thead>
     <tbody>
     {% for p in dd.parts %}
       <tr class="acc-row {{ 'sel' if dd.part == p.key }}" data-href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}&dpart={{ p.key | urlencode }}#jobs">
-        <td><a href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}&dpart={{ p.key | urlencode }}#jobs"><b>{{ p.label }}</b></a>{% if p.description %}<br><small class="muted">{{ p.description }}</small>{% endif %}</td>
+        <td><a href="/accuracy/ops?{{ base }}&drill={{ drillKey | urlencode }}&dpart={{ p.key | urlencode }}#jobs"><b>{{ p.label }}</b></a>{% if p.description %}<span class="acc-desc" title="{{ p.description }}">{{ p.description }}</span>{% endif %}</td>
         <td class="num">{{ p.jobs }}</td><td class="num">{{ p.jobsOff }}</td>
         <td class="num">{{ varcell(p.netDollars) }}</td><td class="num">{{ p.grossDollars | money0 }}</td>
         <td class="num">{{ varcell(p.avgPct, 'pct') }}</td><td class="num">{{ p.attention | money0 }}</td>
@@ -143,7 +146,7 @@
 {% endif %}
 
 <!-- ============================================================ operations -->
-<div class="card">
+<div class="card" id="sec-ops">
   <div class="page-head" style="margin-bottom:8px">
     <h2>Operations <small class="muted">by {{ 'Resource Group' if f.opBy == 'rg' else 'Op Code' }}</small></h2>
     <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
@@ -157,7 +160,7 @@
 </div>
 
 <!-- ============================================================ materials -->
-<div class="card">
+<div class="card" id="sec-mtl">
   <div class="page-head" style="margin-bottom:8px">
     <h2>Materials <small class="muted">by {{ 'Material Class' if f.mtlBy == 'class' else 'Part Number' }}</small></h2>
     <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
@@ -171,7 +174,7 @@
 </div>
 
 <!-- ============================================================ chart -->
-<div class="card">
+<div class="card" id="sec-chart">
   <h2>Biggest Net Variances</h2>
   <div class="muted" style="margin-bottom:8px">The 15 biggest net $ variances across operations and materials. Red to the right = jobs over the estimate; blue to the left = jobs under the estimate. Click a bar to drill into it.</div>
   {% if d.chart.length %}
@@ -181,7 +184,7 @@
 </div>
 
 <!-- ============================================================ unestimated -->
-<div class="card">
+<div class="card" id="sec-unest">
   <h2>Unestimated Work <small class="muted">{{ d.unestimated.lines }} lines</small></h2>
   <div class="muted" style="margin-bottom:8px">Work that was done or material that was used with <b>nothing estimated</b>. There is no variance % for these, so they are kept out of the lists above. An estimating gap worth seeing: it was not in the quote at all.</div>
   {% if d.unestimated.lines %}
@@ -200,4 +203,4 @@
   {% else %}<div class="empty">No unestimated work in this period.</div>{% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

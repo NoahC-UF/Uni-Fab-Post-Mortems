@@ -145,7 +145,7 @@ describe('calculations on hand-made lines', () => {
     assert.equal(parseAccuracyFilters({ internal: '1' }, NOW, { excludeNonOrderJobs: true }).internal, true);
     assert.equal(parseAccuracyFilters({ internal: ['0', '1'] }, NOW, {}).internal, true, 'a ticked box sends 0 then 1');
     const bad = parseAccuracyFilters({ status: 'x', basis: 'y', minJobs: '0', sort: 'z', opBy: 'q', from: 'nope' }, NOW, {});
-    assert.deepEqual([bad.status, bad.basis, bad.minJobs, bad.sort, bad.opBy], ['closed', 'dollars', 3, 'excess', 'op']);
+    assert.deepEqual([bad.status, bad.basis, bad.minJobs, bad.sort, bad.opBy], ['closed', 'dollars', 3, 'netvar', 'op']);
     const link = new URLSearchParams(filterLink(f, { drill: 'op:WELD' }));
     assert.equal(link.get('drill'), 'op:WELD');
     assert.equal(link.get('from'), f.from);
@@ -397,7 +397,7 @@ describe('the pages in the browser', () => {
   test('Operations & Materials renders every part', async () => {
     const r = await S.reviewer.get(`/accuracy/ops?${q}`);
     assert.equal(r.statusCode, 200);
-    for (const t of ['Labour Variance', 'Material Variance', 'Operation Accuracy', 'Material Accuracy', 'Needs Attention', 'Top 10 Operations: Jobs Over Estimates', 'Top 10 Materials: Jobs Over Estimates', 'Biggest Net Variances', 'Unestimated Work', 'Excess $']) assert.ok(r.body.includes(t), t);
+    for (const t of ['Labour Variance', 'Material Variance', 'Operation Accuracy', 'Material Accuracy', 'Needs Attention', 'Top 10 Operations: Jobs Over Estimates', 'Top 10 Materials: Jobs Over Estimates', 'Biggest Net Variances', 'Unestimated Work', 'Net Var $']) assert.ok(r.body.includes(t), t);
     assert.match(r.body, /id="divData"/);
     assert.match(r.body, /name="outliers"/);
     assert.match(r.body, /name="minJobs"/);
@@ -516,7 +516,7 @@ describe('the pages in the browser', () => {
     assert.ok(link, 'rows link to the customer');
     const detail = await S.reviewer.get(`${link[1]}?${q}`);
     assert.equal(detail.statusCode, 200);
-    for (const t of ['Margin Over Time', 'Margin vs Target $ Over Time', "What Is Going Wrong on This Customer's Work", 'Repeat Part Numbers', 'All Jobs', 'Flagged Jobs', 'Post-Mortems In Progress', 'Completed Post-Mortems', 'Top Root Causes']) assert.ok(detail.body.includes(t), t);
+    for (const t of ['Margin Over Time', 'Margin vs Target $ Over Time', 'Operations &amp; Material Review', 'Repeat Part Numbers', 'All Jobs', 'Flagged Jobs', 'Post-Mortems In Progress', 'Completed Post-Mortems', 'Top Root Causes']) assert.ok(detail.body.includes(t), t);
     assert.match(detail.body, /Worse than normal|Better than normal|In line with the shop/);
     assert.equal((await S.reviewer.get(`/accuracy/customers/NOBODY?${q}`)).statusCode, 404);
   });

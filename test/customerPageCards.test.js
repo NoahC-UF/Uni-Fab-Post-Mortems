@@ -7,10 +7,14 @@ import { makeSession } from './helpers.js';
 const F = (over = {}) => ({ ...parseAccuracyFilters({ from: '2000-01-01', to: '2999-01-01', internal: '1', minJobs: '1' }, new Date('2026-06-15T12:00:00Z'), {}, { customers: true }), ...over });
 const q = 'from=2000-01-01&to=2999-01-01&minJobs=1';
 
-/** The cards at the top of a customer's page: label -> { cls, value, sub, title }. */
+// a card may start with its one-line layer (shown once the pinned block has shrunk): <div class="tile-short"><span class="ts-label">SHORT:</span>..</div>
+const SHORT = '(?:<div class="tile-short"[^>]*><span class="ts-label">([^<]*):<\\/span>.*?<\\/div>)?';
+
+/** The cards at the top of a customer's page: label -> { cls, value, sub, title, short }. */
 const tiles = (b) => {
   const out = {};
-  for (const m of b.matchAll(/<div class="tile ([^"]*)"(?: title="([^"]*)")?><div class="label">([^<]*)<\/div><div class="value">(.*?)<\/div><div class="sub">(.*?)<\/div><\/div>/gs)) out[m[3]] = { cls: m[1].trim(), title: m[2] ?? '', value: m[4], sub: m[5] };
+  const re = new RegExp('<div class="tile ([^"]*)"(?: title="([^"]*)")?>' + SHORT + '<div class="label">([^<]*)<\\/div><div class="value">(.*?)<\\/div><div class="sub">(.*?)<\\/div><\\/div>', 'gs');
+  for (const m of b.matchAll(re)) out[m[4]] = { cls: m[1].trim(), title: m[2] ?? '', value: m[5], sub: m[6], short: m[3] ?? null };
   return out;
 };
 

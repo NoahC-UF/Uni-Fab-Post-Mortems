@@ -23,8 +23,7 @@ The words are deliberately neutral: a job that runs over is not automatically a 
 | Off | the app's own flag: outside the green band **and** past the minimum hours / dollars set in Settings. Nothing new is hard-coded. |
 | % of jobs off | the share of a group's jobs with at least one flagged line in it. |
 | Accuracy | the share of lines (operations, or material lines) that are **not** off. |
-| Excess $ | the dollars beyond what the green band allows: Net Var $ less the green band % (Settings) of the estimated dollars, with the same sign (red = over the estimate, green = under). $0 inside the band. It sizes a problem by the money it really cost *and* the amount of work it was spread over, so a tiny item at +200% and a big item at +10% both show what they are worth. The Operations and Materials lists are ranked on it. |
-| Attention score | gross $ variance x share of jobs off. No longer a column in the lists (it still drives the Needs Attention count and the drill-down); the CSV keeps it. |
+| Attention score | gross $ variance x share of jobs off. Not a column in the Operations and Materials lists (it still drives the Needs Attention count and the drill-down); the CSV keeps it. |
 
 Net and gross are always shown side by side.
 
@@ -104,7 +103,15 @@ Six cards sit above the lists. They cover the customers the filters leave in (so
 - **Net Variance**: actual minus estimated cost over all jobs, with the gross (size, ignoring direction) and the labour / material / other split. Red = over the estimates overall, blue = under.
 - **Customer-Level Accuracy**: the share of jobs that were not off. Green at 80% or more, yellow below (the 80% is fixed, not a setting).
 
-## The cards on one customer's page
+## The top of one customer's page
+
+The heading, the date buttons, the filters and the seven cards below make up one block that **stays on screen while the rest of the page scrolls**, so the customer's figures are always in view. It pins only on a wide, tall window (at least 1,751 px wide, so all seven cards fit in one row, and at least 800 px tall); on a smaller window the page scrolls as usual.
+
+**It shrinks as you scroll** to save room. Once the page has scrolled by about the amount the block gets shorter by (roughly 95 px), the block eases down from about 270 px to about 175 px: the date line (*Customers › name · dates*) fades away, so the name line and the date buttons end up on the same line (name at the left, date buttons at the right), and each card cross-fades to a single line with a short label: *MARGIN: 12.7%*, *MAR. VS TAR. $*, *LAB. VS MAT.*, *FLAGGED JOBS*, *PMRs IN PROGRESS*, *COMPLETED PMRs*, *ROOT CAUSES*. The small print under each card is hidden while it is shrunk. Scrolling back up grows it again (with a little slack, so it does not flicker at the edge). Everything that changes height uses the same time and curve, and the page below does not jump when the block changes size. Nothing animates for anyone whose system asks for reduced motion.
+
+The customer's name, tier, account manager and a short note comparing the customer with the shop are on **one line** at the left of the date row, with the date line under them and the date buttons at the right. The note reads *Worse than normal / Better than normal / In line with the shop* and the share of the customer's jobs that were off (for example *Worse than normal: 58.3% of jobs off*); the shop-wide share and the difference in points are in its hover text.
+
+### The cards
 
 Seven cards, each a line or two of small print, all the same height:
 
@@ -122,9 +129,49 @@ Under the cards, two charts side by side (switch **Month / Quarter** above the f
 
 Only closed jobs with a sale price count, the same as the Margin card.
 
+## Scroll To menu
+
+The right-hand end of the filter section holds, after a divider, the page's own buttons and an up / down button. On one customer's page the buttons are *All Customers* and *Open in Flagged Jobs*, in the same height as the filter boxes; **Reset** and **Apply Filters** sit directly after the filters. The up / down button, always the last one, opens a **Scroll To** list of the sections of the page: click one and the page glides to it (the section is opened if it is a fold-away one). The first item, Overview, goes back to the top. The section you are looking at is highlighted when the menu opens. Each page lists its own sections:
+
+- **Operations & Materials**: Overview, Drill-Down (only while one is open), Operations, Materials, Biggest Net Variances, Unestimated Work.
+- **Customers**: Overview, Customers, How Often vs How Far Off.
+- **One customer**: Overview, Margin Charts, Operations & Material Review, Repeat Part Numbers, All Jobs.
+
+## All Jobs and Repeat Part Numbers follow the filters
+
+On one customer's page, the **All Jobs** and **Repeat Part Numbers** cards are ordered by the page's **Sort Lists By** and **Sort Order**, on the column each card has for that sort:
+
+| Sort Lists By | All Jobs | Repeat Part Numbers |
+|---|---|---|
+| Net Var $ (the default) | Var $ | Net Var $ |
+| Impact (Chosen Basis) | Var $ (or Var % on the % basis) | Net Var $ (or Avg Var % on the % basis) |
+| Avg Variance % | Var % | Avg Var % |
+| % of Jobs Off | the jobs that were off (the Off flag) | the share of the part's jobs that were off |
+| Needs Attention | no such column: the usual order (the biggest miss first) | no such column: the usual order (the most jobs off first) |
+
+High to Low puts the biggest first (for Var $ that means the most over the estimate); Low to High puts the smallest or most under the estimate first. Jobs or parts with no estimate (so no Var %) always go last. The Hours basis has no column in these cards, so it uses dollars.
+
+## Repeat Part Numbers: columns and link
+
+On a customer's page, each part that was off on two or more jobs shows: **Jobs**, **Jobs Off**, **Total Qty** (the pieces made, added up over all of that part's jobs in the date range), **Labour Var $**, **Material Var $**, **Net Var $** and **Avg Var %**. The description gets a narrower column (it is clipped to one line; hover for the whole text).
+
+Click the **part number** to open Flagged Jobs filtered to that part, this customer and the same dates, with every flag shown, so you see the jobs the part was on. (The Flagged Jobs Part Number filter is a "contains" match, so a part number that is the start of a longer one also lists the longer one.)
+
+## Long descriptions
+
+A material or part with a long description (a drawing note, a purchase order, a finish) shows only the start of it, cut with "..." to the room its column has, so the numbers always stay on screen and nobody has to scroll sideways. The start is what matters (the kind and the size). Hover over it to read the whole text. This applies to the Operations and Materials lists, the parts a group appears on, and a customer's Repeat Part Numbers.
+
+## Staying where you were
+
+When you change a filter, press Apply Filters or Reset, use a date button, switch Month / Quarter or pick another "Show" layout, the page reloads. It remembers the section you were reading (the same sections as the Scroll To menu, and how far into it you were) and scrolls straight back to that spot, with the pinned block already in the right size. The memory lasts a minute and is used once; leaving for another page, opening a link to an anchor or coming back later starts at the top as usual. Nothing is remembered if you were at the very top.
+
+## One customer's Operations & Material Review
+
+The section with the operation and material lists is titled *Customer name - Operations & Material Review*, with the **Show** box (Jobs Over Estimates, Jobs Under Estimates, Both - Horizontal Window, Both - Vertical Window) at the right of the same header. A customer opens on **Both - Horizontal Window**: the over and under lists side by side. The Customers and Operations & Materials pages still open on Jobs Over Estimates, and the links between them do not pass this choice across.
+
 ## Filters
 
-Quick date buttons above the filters (Last 30 days, Last 90 days, This month, Last month, Year to date, Last 12 months, the same ranges as the Dashboard) switch the dates in one click and keep every other filter. **Tier** (a drop-down of tick boxes: tick one or more, such as A and B, or none for all tiers; *Not on the List* can be ticked with them) and **Account Manager** (both from the Customer Organization list in Settings) limit both pages to those customers: every figure, list, chart and CSV then covers only them, and Internal / Stock jobs drop out because they have no customer. Account Manager also offers Unassigned, and both offer Not on the List. Neither filter applies inside one customer's page. Date range (default last 90 days, the same on the Dashboard, Flagged Jobs and these pages; closed date, or latest labour / material date for an in-progress job), Jobs (closed only by default, or include in-progress: only completed operations and issued material are compared, never a full estimate against partial actuals), Variance Basis ($ default, Hours, %), Minimum Jobs (default 3: smaller groups are left out of the lists, and the page says how many), Sort Lists By (Excess $ is the default for operations and materials, biggest first; Needs Attention is still one choice away; the Customers page opens on Margin vs Target $, Low to High, so the customers furthest below their target come first; Impact, % of Jobs Off, Avg Variance %, and on the Customers page Margin $ and Margin %; customers with no margin are always last) with a Sort Order of High to Low (default) or Low to High, group operations by Op Code or Resource Group, group materials by Part Number or Material Class, trend by Month or Quarter, Exclude Outliers (in the **Other Options** drop-down with Include Internal / Stock Jobs; single lines over +/-300%; the page always says how many there are), Include Internal / Stock Jobs.
+Quick date buttons above the filters (Last 30 days, Last 90 days, This month, Last month, Year to date, Last 12 months, the same ranges as the Dashboard) switch the dates in one click and keep every other filter. **Tier** (a drop-down of tick boxes: tick one or more, such as A and B, or none for all tiers; *Not on the List* can be ticked with them) and **Account Manager** (both from the Customer Organization list in Settings) limit both pages to those customers: every figure, list, chart and CSV then covers only them, and Internal / Stock jobs drop out because they have no customer. Account Manager also offers Unassigned, and both offer Not on the List. Neither filter applies inside one customer's page. Date range (default last 90 days, the same on the Dashboard, Flagged Jobs and these pages; closed date, or latest labour / material date for an in-progress job), Jobs (closed only by default, or include in-progress: only completed operations and issued material are compared, never a full estimate against partial actuals), Variance Basis ($ default, Hours, %), Minimum Jobs (default 3: smaller groups are left out of the lists, and the page says how many), Sort Lists By (Net Var $ is the default for operations and materials, biggest first, whatever the Variance Basis; Impact (Chosen Basis) follows the basis instead; Needs Attention is one choice away; the Customers page opens on Margin vs Target $, Low to High, so the customers furthest below their target come first; Impact, % of Jobs Off, Avg Variance %, and on the Customers page Margin $ and Margin %; customers with no margin are always last) with a Sort Order of High to Low (default) or Low to High, group operations by Op Code or Resource Group, group materials by Part Number or Material Class, trend by Month or Quarter, Exclude Outliers (in the **Other Options** drop-down with Include Internal / Stock Jobs; single lines over +/-300%; the page always says how many there are), Include Internal / Stock Jobs.
 
 The filters are in the address, so a filtered view can be bookmarked or sent to someone. Every list has a CSV export (all groups, filters applied).
 
@@ -141,7 +188,7 @@ Customers: one customer in full with cards, margin and margin-vs-target charts o
 
 ## Assumptions, and what I could not find
 
-1. **Default sort.** Your brief says lists rank by $ impact by default and also that the Needs Attention score is the default sort. The default was Needs Attention, which ranked a busy item that is slightly over most of the time above one that lost far more money; it is now **Excess $** (the dollars beyond the green band), with Needs Attention and "Impact (Chosen Basis)" one choice away. "$ impact" in a list means the **net** variance on the chosen basis (net $, net hours / quantity, or avg %), so the Jobs Over Estimates list is biggest overruns first and the Jobs Under Estimates list is biggest under-runs first. Excess $ is shown next to it.
+1. **Default sort.** Your brief says lists rank by $ impact by default and also that the Needs Attention score is the default sort. The default is **Net Var $**; Needs Attention and Impact (Chosen Basis, which follows the Variance Basis) are one choice away. "$ impact" in a list means the **net** variance on the chosen basis (net $, net hours / quantity, or avg %), so the Jobs Over Estimates list is biggest overruns first and the Jobs Under Estimates list is biggest under-runs first. Avg Var % is shown next to it.
 2. **"Needs attention" count.** You gave no rule. A group needs attention when it has enough jobs and **either** its overall variance % is outside the app's green band **or** it is off more often than the shop's norm (so +50% / -50% pairs that net to zero are still caught). Customers use the same rule.
 3. **Customer "off".** A job is off when its whole-job variance % is outside the green band and passes the minimum hours / dollars. (For operations and materials, off = the engine flagged a line, as everywhere else.)
 4. **Labour / material / both indicator.** "Labour" or "Material" when that one is at least 70% of the customer's variance, otherwise "Both". This is a display label, not a threshold for flagging.

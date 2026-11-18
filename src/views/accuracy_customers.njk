@@ -13,7 +13,8 @@
   <div class="row no-print"><a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=customers">&#8681; Customers CSV</a></div>
 </div>
 
-{{ filterBar(f, '/accuracy/customers', sorts, bases, false, '', presets, org, orders, tops) }}
+{% set jump = [{ 'id': 'sec-top', 'label': 'Overview' }, { 'id': 'sec-customers', 'label': 'Customers' }, { 'id': 'bubbleFold', 'label': 'How Often vs How Far Off' }] %}
+{{ filterBar(f, '/accuracy/customers', sorts, bases, false, '', presets, org, orders, tops, jump) }}
 {{ orgNote(f, '/accuracy/customers', baseNoOrg) }}
 
 {% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
@@ -37,14 +38,14 @@
       't-red' if s.netDollars > 0 else 't-blue') }}
   {{ tile('Customer-Level Accuracy', (s.accuracy | pct) if s.accuracy !== null else 'n/a', (s.pctOff | pct) ~ ' of jobs off, shop-wide<br>' ~ s.off ~ ' of ' ~ s.jobs ~ ' jobs were off', 't-green' if s.accuracy !== null and s.accuracy >= 0.8 else 't-yellow') }}
 </div>
-<div class="card">
+<div class="card" id="sec-customers">
   <div class="page-head" style="margin-bottom:8px">
     <h2>Customers</h2>
     <div class="row no-print">{{ listPicker(f, '/accuracy/customers', listLinks, listViews) }}</div>
   </div>
   {{ lists(f,
-    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': custTable(d.over, base, d.targetMargin, marginBands), 'foot': d.overAll ~ ' over the estimate in all.' },
-    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': custTable(d.under, base, d.targetMargin, marginBands), 'foot': d.underAll ~ ' under the estimate in all.' }) }}
+    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': custTable(d.over, baseNoLists, d.targetMargin, marginBands), 'foot': d.overAll ~ ' over the estimate in all.' },
+    { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Under Estimates', 'sub': 'actual < estimate', 'body': custTable(d.under, baseNoLists, d.targetMargin, marginBands), 'foot': d.underAll ~ ' under the estimate in all.' }) }}
   {% if d.hidden %}<div class="muted acc-foot">{{ d.hidden }} customer{{ '' if d.hidden == 1 else 's' }} with fewer than {{ f.minJobs }} jobs left out. Lower Minimum Jobs to see them.</div>{% endif %}
 </div>
 
@@ -57,8 +58,8 @@
   </div>
   {% if d.bubbles.length %}
   <div class="chart-box" style="height:420px"><canvas id="bubbleChart"></canvas></div>
-  <script type="application/json" id="bubbleData">{{ {'points': d.bubbles, 'green': d.greenMax, 'shopOff': d.shop.pctOff, 'base': base} | json | safe }}</script>
+  <script type="application/json" id="bubbleData">{{ {'points': d.bubbles, 'green': d.greenMax, 'shopOff': d.shop.pctOff, 'base': baseNoLists} | json | safe }}</script>
   {% else %}<div class="empty">No customers have {{ f.minJobs }} or more jobs for these filters.</div>{% endif %}
 </details>
 {% endblock %}
-{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

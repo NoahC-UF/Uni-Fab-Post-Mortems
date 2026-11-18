@@ -18,14 +18,14 @@ export default async function accuracyRoutes(app) {
   const MARGIN_SORTS = ['margin', 'marginpct', 'vstarget'];
   const filters = (req, margins = false) => {
     const f = parseAccuracyFilters(req.query, now(), getSettings(db), { customers: margins });
-    return !margins && MARGIN_SORTS.includes(f.sort) ? { ...f, sort: 'excess' } : f;
+    return !margins && MARGIN_SORTS.includes(f.sort) ? { ...f, sort: 'netvar' } : f;
   };
   // listLinks: the page's address for each choice of the "Show" list picker, keeping every other filter (and the open drill-down)
   const listLinks = (f, extra = {}) => Object.fromEntries(LIST_VIEWS.map((l) => [l.id, filterLink(f, { ...extra, lists: l.id })]));
   // the quick date buttons (the same ranges as the Dashboard); each keeps every other filter
   const presetsFor = (f, path) => presetRanges(now()).map((p) => ({ label: p.label, on: p.from === f.from && p.to === f.to, href: `${path}?${filterLink(f, { from: p.from, to: p.to })}` }));
   const shared = (f, extra, path) => ({
-    sorts: SORTS.filter((s) => !s.customers), orders: ORDERS, bases: BASES, listViews: LIST_VIEWS, listLinks: listLinks(f, extra), base: filterLink(f), baseNoOrg: filterLink({ ...f, tier: '', mgr: '' }), greenMax: getEngineConfig(db).greenMax, internalKey: INTERNAL_KEY,
+    sorts: SORTS.filter((s) => !s.customers), orders: ORDERS, bases: BASES, listViews: LIST_VIEWS, listLinks: listLinks(f, extra), base: filterLink(f), baseNoLists: filterLink({ ...f, lists: null }), baseNoOrg: filterLink({ ...f, tier: '', mgr: '' }), greenMax: getEngineConfig(db).greenMax, internalKey: INTERNAL_KEY,
     presets: presetsFor(f, path), org: orgFilterOptions(db),
   });
 
@@ -60,16 +60,16 @@ export default async function accuracyRoutes(app) {
 
   // ---------------------------------------------------------------- page 2: customers
   app.get('/accuracy/customers', async (req, reply) => {
-    const base = filters(req, true);
-    // Excess $ ranks operations and materials; a customer list asked for it (an old link) opens on the customer default instead
-    const f = { ...base, cust: '', ...(base.sort === 'excess' ? { sort: 'vstarget', order: 'asc' } : {}) };
-    return reply.page('accuracy_customers.njk', { ...shared(f, undefined, '/accuracy/customers'), sorts: SORTS.filter((s) => !s.lists), tops: TOP_CHOICES, d: customersPage(db, f) });
+    const f = { ...filters(req, true), cust: '' };
+    return reply.page('accuracy_customers.njk', { ...shared(f, undefined, '/accuracy/customers'), sorts: SORTS, tops: TOP_CHOICES, d: customersPage(db, f) });
   });
 
   app.get('/accuracy/customers/:cust', async (req, reply) => {
     // one customer in full: the tier / account manager filters do not apply (they pick customers; this is one), but they are kept in the links back
-    const kept = { ...filters(req, true), cust: '' };
-    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'excess' : kept.sort, order: MARGIN_SORTS.includes(kept.sort) ? 'desc' : kept.order };
+    const asked = filters(req, true);
+    // one customer's lists open side by side (Both - Horizontal Window) unless the address says otherwise
+    const kept = { ...asked, cust: '', lists: req.query.lists === undefined ? 'h' : asked.lists };
+    const f = { ...kept, tier: '', mgr: '', sort: MARGIN_SORTS.includes(kept.sort) ? 'netvar' : kept.sort, order: MARGIN_SORTS.includes(kept.sort) ? 'desc' : kept.order };
     const key = String(req.params.cust).slice(0, 60);
     const c = customerDetail(db, f, key);
     if (!c) throw notFound('That customer has no jobs for these filters.');

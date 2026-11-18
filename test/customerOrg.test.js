@@ -302,7 +302,7 @@ describe('the date controls are the same on the Dashboard, Ops & Materials and C
   test('Apply on Ops & Materials and Customers sends the dates together with every filter below it (one form)', async () => {
     const S = await makeSession();
     const body = (await S.admin.get('/accuracy/customers')).body;
-    const form = /<form method="get" action="\/accuracy\/customers" class="no-print acc-form">([\s\S]*?)<\/form>/.exec(body)[1];
+    const form = /<form method="get" action="\/accuracy\/customers" class="no-print acc-form"[^>]*>([\s\S]*?)<\/form>/.exec(body)[1];
     for (const n of ['from', 'to', 'tier', 'mgr', 'status', 'basis', 'minJobs', 'sort', 'trend', 'lists']) assert.ok(form.includes(`name="${n}"`), `${n} is in the same form as the dates`);
   });
 });
@@ -375,7 +375,7 @@ describe('sorting the customer lists by margin, in either direction', () => {
 
     const ops = (await S.admin.get('/accuracy/ops?sort=margin&order=asc')).body;
     assert.ok(!/<option value="margin"/.test(ops), 'no margin sorts on operations and materials');
-    assert.match(ops, /<option value="excess" selected>/, 'a margin sort carried over from Customers falls back to the default');
+    assert.match(ops, /<option value="netvar" selected>/, 'a margin sort carried over from Customers falls back to the default');
     assert.match(ops, /<option value="asc" selected>Low to High<\/option>/, 'but the order is kept');
   });
 
@@ -385,7 +385,7 @@ describe('sorting the customer lists by margin, in either direction', () => {
     assert.ok(hrefs.length > 6);
     for (const h of hrefs.slice(0, 8)) assert.ok(h.includes('sort=margin') && h.includes('order=asc'), h);
     const detail = (await S.admin.get(hrefs.find((h) => /^\/accuracy\/customers\/[^?]+\?/.test(h)))).body;
-    assert.match(detail, /<option value="excess" selected>/, 'one customer\'s operation and material lists use the default sort');
+    assert.match(detail, /<option value="netvar" selected>/, 'one customer\'s operation and material lists use the default sort');
     assert.ok(detail.includes('sort=margin&amp;order=asc') || detail.includes('sort=margin&order=asc'), 'the way back to the customers list keeps the margin sort');
   });
 });
@@ -439,7 +439,7 @@ describe('Margin vs Target $: the number that weighs margin $ and margin % toget
     assert.ok(body.includes('dollars short of target') || body.includes('Red = dollars short of target'));
     const ops = (await S.admin.get('/accuracy/ops?sort=vstarget')).body;
     assert.ok(!/<option value="vstarget"/.test(ops));
-    assert.match(ops, /<option value="excess" selected>/);
+    assert.match(ops, /<option value="netvar" selected>/);
     assert.ok(accuracyCsv(S.db, F3(), 'customers').split('\r\n')[0].includes('Margin vs Target $'));
   });
 });

@@ -13,9 +13,7 @@
 //   (Neither word blames anyone: a job that runs over can be the quote, how the job was released, or the shop floor.)
 //   Net variance  = sum of the signed variances. Gross variance = sum of their sizes (so +50% and -50% do not cancel).
 //   Variance %    = (actual - estimate) / estimate, taken over the whole group (total variance / total estimate).
-//   Excess $      = net variance beyond what the green band allows on that much estimated work:
-//                   sign(net) x max(0, |net| - green band x estimate). 0 inside the band. How the lists are ranked by default.
-//   Attention score = gross $ variance x share of jobs that were off (still used for the Needs Attention flag and the drill-down).
+//   Attention score = gross $ variance x share of jobs that were off (used for the Needs Attention flag and the drill-down, not shown in the lists).
 
 import { getEngineConfig, getSettings } from './settings.js';
 import { loadCustomerOrg, orgFor, customerIdsFor } from './customerOrg.js';
@@ -50,7 +48,7 @@ export const LIST_VIEWS = [
   { id: 'v', label: 'Both - Vertical Window' },
 ];
 export const SORTS = [
-  { id: 'excess', label: 'Excess $', lists: true }, // operations and materials only: the dollars beyond the green band (customers have Margin vs Target $)
+  { id: 'netvar', label: 'Net Var $' }, // net dollars variance, whatever the Variance Basis (the default for operations and materials)
   { id: 'attention', label: 'Needs Attention' },
   { id: 'impact', label: 'Impact (Chosen Basis)' },
   { id: 'frequency', label: '% of Jobs Off' },
@@ -93,7 +91,7 @@ export const DEFAULT_DAYS = 90; // the pages open on the last 90 days
 /**
  * Filters from the query string. The defaults are: the last 90 days, closed jobs only, at least 3 jobs, $ basis.
  * customers: true for the Customers page, which opens sorted by Margin vs Target $, Low to High (the customers furthest below their
- * target first). Everywhere else the lists open on Excess $, High to Low.
+ * target first). Everywhere else the lists open on Net Var $, High to Low.
  */
 export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}, { customers = false } = {}) {
   const minJobs = Math.round(Number(q.minJobs));
@@ -107,7 +105,7 @@ export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}, { 
     internal: flag01(q.internal, !settings.excludeNonOrderJobs), // include Internal / Stock jobs (no customer): follows the Settings choice until set here
     opBy: pick(q.opBy, ['op', 'rg'], 'op'),
     mtlBy: pick(q.mtlBy, ['part', 'class'], 'part'),
-    sort: pick(q.sort, SORTS.map((s) => s.id), customers ? 'vstarget' : 'excess'),
+    sort: pick(q.sort, SORTS.map((s) => s.id), customers ? 'vstarget' : 'netvar'),
     order: pick(q.order, ORDERS.map((o) => o.id), customers ? 'asc' : 'desc'), // desc = the biggest / highest first, asc = the smallest / lowest first
     trend: pick(q.trend, ['month', 'quarter'], 'month'),
     lists: pick(q.lists, LIST_VIEWS.map((l) => l.id), 'over'), // which top lists to show: over, under, both side by side (h) or both stacked (v)
@@ -122,7 +120,7 @@ export function parseAccuracyFilters(q = {}, now = new Date(), settings = {}, { 
 export function filterLink(f, patch = {}) {
   const v = { ...f, ...patch };
   const p = new URLSearchParams();
-  for (const k of ['from', 'to', 'status', 'minJobs', 'basis', 'opBy', 'mtlBy', 'sort', 'order', 'trend', 'lists', 'top']) p.set(k, String(v[k]));
+  for (const k of ['from', 'to', 'status', 'minJobs', 'basis', 'opBy', 'mtlBy', 'sort', 'order', 'trend', 'lists', 'top']) if (v[k] !== null) p.set(k, String(v[k])); // null = leave it out (a link to a page with its own default)
   p.set('outliers', v.outliers ? '1' : '0');
   p.set('internal', v.internal ? '1' : '0');
   if (v.cust) p.set('cust', v.cust);
@@ -173,7 +171,7 @@ export function loadLines(db, f, { cust = f.cust || null } = {}) {
       `SELECT l.job_num, l.kind, l.op_code, l.resource_grp_id, l.part_num, l.description, l.class_id, l.unplanned, l.flag, l.activity_date,
               l.exp_hours, l.act_hours, l.exp_setup, l.act_setup, l.exp_run, l.act_run, l.var_hours, l.exp_qty, l.act_qty,
               l.est_dollars, l.act_dollars, l.var_dollars, l.usage_var, l.price_var, l.var_pct,
-              j.part_num AS job_part, j.part_description AS job_part_desc, j.cust_id, j.cust_name, j.order_num, j.closed
+              j.part_num AS job_part, j.part_description AS job_part_desc, j.qty_completed AS job_qty, j.cust_id, j.cust_name, j.order_num, j.closed
        FROM line_results l JOIN jobs j ON j.job_num = l.job_num
        WHERE ${where.join(' AND ')}`,
     )
@@ -248,11 +246,8 @@ function add(acc, l) {
 }
 
 /** Turns an accumulator into the figures shown. `kind` is 'op' (hours) or 'material' (quantity). */
-function finish(acc, kind, tolerance = 0) {
+function finish(acc, kind) {
   const jobs = acc.jobs.size;
-  // Excess $: the variance dollars beyond what the green band allows on this much estimated work (tolerance x estimate).
-  // Inside the band it is 0. Same sign as the net variance: + over the estimate, - under it.
-  const excess = Math.sign(acc.varD) * Math.max(0, Math.abs(acc.varD) - tolerance * acc.estD);
   const pctOff = jobs ? acc.jobsOff.size / jobs : 0;
   const varHrs = acc.actHrs - acc.estHrs;
   const varQty = acc.actQty - acc.expQty;
@@ -278,13 +273,11 @@ function finish(acc, kind, tolerance = 0) {
     usageDollars: r2(acc.usage), priceDollars: r2(acc.price),
     avgPct: avgPct === null ? null : r4(avgPct),
     attention: r2(acc.gross * pctOff),
-    excess: r2(excess),
-    tolerance, // the green band that Excess $ was worked out with (a fraction)
   };
 }
 
-/** Lines -> groups. keyFn returns { key, label, description? }. tolerance = the green band (a fraction), for Excess $. */
-export function groupLines(lines, keyFn, kind, tolerance = 0) {
+/** Lines -> groups. keyFn returns { key, label, description? }. */
+export function groupLines(lines, keyFn, kind) {
   const m = new Map();
   for (const l of lines) {
     if (l.kind !== kind) continue;
@@ -292,7 +285,7 @@ export function groupLines(lines, keyFn, kind, tolerance = 0) {
     if (!m.has(k.key)) m.set(k.key, newAcc(k.key, k.label, { description: k.description }));
     add(m.get(k.key), l);
   }
-  return [...m.values()].map((a) => finish(a, kind, tolerance));
+  return [...m.values()].map((a) => finish(a, kind));
 }
 
 export const opKey = (by) => (l) => (by === 'rg' ? { key: l.resource_grp_id || '(none)', label: l.resource_grp_id || '(No Resource Group)' } : { key: l.op_code || '(none)', label: l.op_code || '(No Op Code)', description: l.description });
@@ -325,7 +318,7 @@ export function rankGroups(groups, f, topN = TOP_N) {
   const keyOf = (g, dir) => {
     const s = dir === 'over' ? 1 : -1;
     switch (f.sort) {
-      case 'excess': return s * (g.excess ?? 0);
+      case 'netvar': return s * g.netDollars;
       case 'attention': return g.attention;
       case 'frequency': return g.pctOff;
       case 'avg': return s * (g.avgPct ?? 0);
@@ -340,9 +333,7 @@ export function rankGroups(groups, f, topN = TOP_N) {
     const ka = keyOf(a, dir);
     const kb = keyOf(b, dir);
     if (ka === null || kb === null) return ka === kb ? a.label.localeCompare(b.label) : ka === null ? 1 : -1;
-    // groups inside the green band all have 0 Excess $: the bigger net variance comes first among them
-    const tie = f.sort === 'excess' ? flip * (dir === 'over' ? 1 : -1) * (b.netDollars - a.netDollars) : 0;
-    return flip * (kb - ka) || tie || a.label.localeCompare(b.label);
+    return flip * (kb - ka) || a.label.localeCompare(b.label);
   };
   const over = eligible.filter((g) => val(g) > 0).sort(order('over'));
   const under = eligible.filter((g) => val(g) < 0).sort(order('under'));
@@ -371,8 +362,8 @@ export function opsAndMaterials(db, f) {
   const lines = loadLines(db, f);
   const { estimated, unestimated, outliers } = splitLines(lines, f);
 
-  const ops = groupLines(estimated, opKey(f.opBy), 'op', cfg.greenMax);
-  const mtls = groupLines(estimated, mtlKey(f.mtlBy), 'material', cfg.greenMax);
+  const ops = groupLines(estimated, opKey(f.opBy), 'op');
+  const mtls = groupLines(estimated, mtlKey(f.mtlBy), 'material');
   const opT = totals(estimated, 'op');
   const mtlT = totals(estimated, 'material');
   const ctx = { greenMax: cfg.greenMax, minJobs: f.minJobs };
@@ -556,7 +547,7 @@ function jobTotals(db, estimated, cfg) {
   for (const l of estimated) {
     if (!m.has(l.job_num)) {
       const c = customerOf(l);
-      m.set(l.job_num, { job: l.job_num, part: l.job_part, partDesc: l.job_part_desc, custKey: c.key, custLabel: c.label, estD: 0, actD: 0, varD: 0, labour: 0, material: 0, varHrs: 0, activity: l.activity_date, lines: 0, flagged: 0, closed: Boolean(l.closed), order: l.order_num });
+      m.set(l.job_num, { job: l.job_num, part: l.job_part, partDesc: l.job_part_desc, custKey: c.key, custLabel: c.label, estD: 0, actD: 0, varD: 0, labour: 0, material: 0, varHrs: 0, qty: num(l.job_qty), activity: l.activity_date, lines: 0, flagged: 0, closed: Boolean(l.closed), order: l.order_num });
     }
     const r = m.get(l.job_num);
     r.estD += num(l.est_dollars);
@@ -760,6 +751,24 @@ function shopFigures(jobs) {
   return { ...marginOf(jobs), jobs: n, off, pctOff: n ? r4(off / n) : 0, accuracy: n ? r4(1 - off / n) : null, avgPct: est > 0 ? r4(v / est) : null, netDollars: r2(v), grossDollars: r2(jobs.reduce((t, j) => t + Math.abs(j.varFull), 0)) };
 }
 
+/**
+ * Puts a table's rows in the order the page's filters ask for (Sort Lists By, Sort Order), on the column that sort means for THAT table.
+ * keys: { sortId: row => number | null }. A sort the table has no column for keeps the table's usual order (fallback). Rows with no value
+ * for the column go last, whichever way it runs. High to Low = the biggest first (for a signed column: the most over the estimate first).
+ */
+export function sortByFilters(rows, f, keys, fallback) {
+  const key = keys[f.sort];
+  if (!key) return rows.sort(fallback);
+  const dir = f.order === 'asc' ? 1 : -1;
+  const none = (v) => v === null || v === undefined || Number.isNaN(v);
+  return rows.sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (none(ka) || none(kb)) return none(ka) && none(kb) ? fallback(a, b) : none(ka) ? 1 : -1;
+    return dir * (ka - kb) || fallback(a, b);
+  });
+}
+
 /** One customer in full: summary, trend, top operations and materials, repeat parts, job list, post-mortem progress and root causes. */
 export function customerDetail(db, f, custKey) {
   const cfg = getEngineConfig(db);
@@ -778,24 +787,33 @@ export function customerDetail(db, f, custKey) {
 
   // top operations and materials for this customer: the same lists as page 1, for this customer's lines only (any sample size)
   const one = { ...f, minJobs: 1 };
-  const ops = groupLines(lines, opKey(f.opBy), 'op', cfg.greenMax);
-  const mtls = groupLines(lines, mtlKey(f.mtlBy), 'material', cfg.greenMax);
+  const ops = groupLines(lines, opKey(f.opBy), 'op');
+  const mtls = groupLines(lines, mtlKey(f.mtlBy), 'material');
 
   // repeat part numbers: the same part came in off on several jobs
   const byPart = new Map();
   for (const j of jobs) {
     const p = j.part || '(none)';
-    if (!byPart.has(p)) byPart.set(p, { part: p, description: j.partDesc, jobs: 0, off: 0, varD: 0, estD: 0 });
+    if (!byPart.has(p)) byPart.set(p, { part: p, description: j.partDesc, jobs: 0, off: 0, qty: 0, labour: 0, material: 0, varD: 0, estD: 0 });
     const t = byPart.get(p);
     t.jobs++;
     if (j.off) t.off++;
+    t.qty += j.qty; // the pieces made, over all of this part's jobs
+    t.labour += j.labour;
+    t.material += j.material;
     t.varD += j.varFull;
     t.estD += j.estFull;
   }
   const repeatParts = [...byPart.values()]
     .filter((p) => p.off >= REPEAT_JOBS_CUSTOMER)
-    .map((p) => ({ ...p, varD: r2(p.varD), avgPct: p.estD > 0 ? r4(p.varD / p.estD) : null }))
-    .sort((a, b) => b.off - a.off || Math.abs(b.varD) - Math.abs(a.varD));
+    .map((p) => ({ ...p, qty: r2(p.qty), labour: r2(p.labour), material: r2(p.material), varD: r2(p.varD), avgPct: p.estD > 0 ? r4(p.varD / p.estD) : null }));
+  // Repeat Part Numbers: Net Var $, Avg Var % and the share of jobs off are columns here; Needs Attention is not, so it keeps the usual order
+  sortByFilters(repeatParts, f, {
+    netvar: (p) => p.varD,
+    impact: f.basis === 'pct' ? (p) => p.avgPct : (p) => p.varD, // no hours column: dollars
+    avg: (p) => p.avgPct,
+    frequency: (p) => p.off / p.jobs,
+  }, (a, b) => b.off - a.off || Math.abs(b.varD) - Math.abs(a.varD));
 
   // job list with post-mortem status
   const pm = postMortemStatus(db, jobs.map((j) => j.job));
@@ -806,8 +824,14 @@ export function customerDetail(db, f, custKey) {
       margin: j.priced ? r2(j.price - j.cost) : null,
       marginPct: j.priced ? r4((j.price - j.cost) / j.price) : null,
       plannedMarginPct: j.priced ? r4((j.price - j.plannedCost) / j.price) : null,
-    }))
-    .sort((a, b) => Math.abs(b.varD) - Math.abs(a.varD) || a.job.localeCompare(b.job));
+    }));
+  // All Jobs: Var $ (Net Var $, Impact), Var % (Avg Variance %, Impact on the % basis) and the Off flag (% of Jobs Off) are columns; Needs Attention is not
+  sortByFilters(jobList, f, {
+    netvar: (j) => j.varD,
+    impact: f.basis === 'pct' ? (j) => j.pct : (j) => j.varD, // no hours column: dollars
+    avg: (j) => j.pct,
+    frequency: (j) => (j.off ? 1 : 0),
+  }, (a, b) => Math.abs(b.varD) - Math.abs(a.varD) || a.job.localeCompare(b.job));
 
   return {
     filters: f,
@@ -885,13 +909,13 @@ export function exportCsv(db, f, view) {
   const d = opsAndMaterials(db, f);
   if (view === 'materials') {
     return toCsv(
-      ['Material', 'Description', 'Jobs', 'Expected Qty', 'Issued Qty', 'Estimated $', 'Actual $', 'Net Variance $', 'Gross Variance $', 'Usage Variance $', 'Price Variance $', 'Avg Variance %', '% of Jobs Off', 'Attention Score', 'Direction', 'Needs Attention', 'Enough Jobs', 'Excess $'],
-      d.mtls.all.sort((a, b) => b.attention - a.attention).map((g) => [g.label, g.description, g.jobs, g.expQty, g.actQty, g.estDollars, g.actDollars, g.netDollars, g.grossDollars, g.usageDollars, g.priceDollars, pctCell(g.avgPct), pctCell(g.pctOff), g.attention, dir(g, f.basis), g.needsAttention ? 'Yes' : 'No', g.jobs >= f.minJobs ? 'Yes' : 'No', g.excess]),
+      ['Material', 'Description', 'Jobs', 'Expected Qty', 'Issued Qty', 'Estimated $', 'Actual $', 'Net Variance $', 'Gross Variance $', 'Usage Variance $', 'Price Variance $', 'Avg Variance %', '% of Jobs Off', 'Attention Score', 'Direction', 'Needs Attention', 'Enough Jobs'],
+      d.mtls.all.sort((a, b) => b.attention - a.attention).map((g) => [g.label, g.description, g.jobs, g.expQty, g.actQty, g.estDollars, g.actDollars, g.netDollars, g.grossDollars, g.usageDollars, g.priceDollars, pctCell(g.avgPct), pctCell(g.pctOff), g.attention, dir(g, f.basis), g.needsAttention ? 'Yes' : 'No', g.jobs >= f.minJobs ? 'Yes' : 'No']),
     );
   }
   return toCsv(
-    [f.opBy === 'rg' ? 'Resource Group' : 'Operation', 'Jobs', 'Expected Hrs', 'Actual Hrs', 'Variance Hrs', 'Setup Variance Hrs', 'Run Variance Hrs', 'Net Variance $', 'Gross Variance $', 'Avg Variance %', '% of Jobs Off', 'Attention Score', 'Direction', 'Needs Attention', 'Enough Jobs', 'Excess $'],
-    d.ops.all.sort((a, b) => b.attention - a.attention).map((g) => [g.label, g.jobs, g.estHrs, g.actHrs, g.varHrs, g.setup.var, g.run.var, g.netDollars, g.grossDollars, pctCell(g.avgPct), pctCell(g.pctOff), g.attention, dir(g, f.basis), g.needsAttention ? 'Yes' : 'No', g.jobs >= f.minJobs ? 'Yes' : 'No', g.excess]),
+    [f.opBy === 'rg' ? 'Resource Group' : 'Operation', 'Jobs', 'Expected Hrs', 'Actual Hrs', 'Variance Hrs', 'Setup Variance Hrs', 'Run Variance Hrs', 'Net Variance $', 'Gross Variance $', 'Avg Variance %', '% of Jobs Off', 'Attention Score', 'Direction', 'Needs Attention', 'Enough Jobs'],
+    d.ops.all.sort((a, b) => b.attention - a.attention).map((g) => [g.label, g.jobs, g.estHrs, g.actHrs, g.varHrs, g.setup.var, g.run.var, g.netDollars, g.grossDollars, pctCell(g.avgPct), pctCell(g.pctOff), g.attention, dir(g, f.basis), g.needsAttention ? 'Yes' : 'No', g.jobs >= f.minJobs ? 'Yes' : 'No']),
   );
 }
 

@@ -2,19 +2,23 @@
 {% from "_macros.njk" import presetButtons, dateFields %}
 
 {# KPI tile. value and sub may carry a little markup (they are written by the pages, never by users). #}
-{% macro tile(label, value, sub, cls='', title='') %}
-<div class="tile {{ cls }}"{% if title %} title="{{ title }}"{% endif %}><div class="label">{{ label }}</div><div class="value">{{ value | safe }}</div><div class="sub">{{ sub | safe }}</div></div>
+{# short = the card's label when it shrinks to one line (the pinned top block of one customer's page). The one-line version is a second layer on top of the card that fades in as the card shrinks. #}
+{% macro tile(label, value, sub, cls='', title='', short='') %}
+<div class="tile {{ cls }}"{% if title %} title="{{ title }}"{% endif %}>{% if short %}<div class="tile-short" aria-hidden="true"><span class="ts-label">{{ short }}:</span><span class="ts-value">{{ value | safe }}</span></div>{% endif %}<div class="label">{{ label }}</div><div class="value">{{ value | safe }}</div><div class="sub">{{ sub | safe }}</div></div>
 {% endmacro %}
 
 {# Filter bar: the same look as the Flagged Jobs filters. ops = show the grouping choices of page 1. #}
 {# presets = the quick date buttons; org = the tiers and account managers to choose from (null on one customer's page). #}
 {# tops = the choices of the Show box (how many customers each list shows); only the Customers page passes them. #}
-{% macro filterBar(f, action, sorts, bases, ops=false, extraHidden='', presets=[], org=null, orders=[], tops=[]) %}
-<form method="get" action="{{ action }}" class="no-print acc-form">
+{# lead = a short note (safe HTML) for the left end of the date row, level with the quick date buttons. #}
+{# actions = the page's own buttons (safe HTML, class btn): shown after the divider at the right of the filter section, left of the Scroll To arrow. #}
+{# jump = the sections of the page for the Scroll To menu: [{ id, label }] in page order; the first has id 'sec-top' (the top of the page). #}
+{% macro filterBar(f, action, sorts, bases, ops=false, extraHidden='', presets=[], org=null, orders=[], tops=[], jump=[], lead='', actions='') %}
+<form method="get" action="{{ action }}" class="no-print acc-form"{% if jump.length %} data-sections="{% for j in jump %}{{ j.id }}{{ ',' if not loop.last }}{% endfor %}"{% endif %}>
   {{ extraHidden | safe }}
   <input type="hidden" name="lists" value="{{ f.lists }}">
   {# the same date controls as the Dashboard; Apply here sends every filter below too #}
-  <div class="row acc-datebar"><div class="date-tools">{{ presetButtons(presets) }}<span class="muted">|</span><span class="date-range">{{ dateFields(f.from, f.to) }}</span></div></div>
+  <div class="row acc-datebar">{% if lead %}<div class="acc-lead">{{ lead | safe }}</div>{% endif %}<div class="date-tools">{{ presetButtons(presets) }}<span class="muted">|</span><span class="date-range">{{ dateFields(f.from, f.to) }}</span></div></div>
   <div class="card acc-filters">
   <div class="filters">
     {# First group: which jobs and customers are counted. Second group (after the divider): how the lists are shown. #}
@@ -82,6 +86,28 @@
     </label>
     {% endif %}
     <div class="filter-actions"><a class="btn" href="{{ action }}">Reset</a><button class="btn btn-primary" type="submit">Apply Filters</button></div>
+    {% if jump.length or actions %}
+    {# After the divider: the page's buttons, then the Scroll To arrow at the far right #}
+    <div class="filter-tools">
+      <span class="filter-sep" aria-hidden="true"></span>
+      {{ actions | safe }}
+      {% if jump.length %}
+      {# Scroll To: a button that opens the list of this page's sections (public/scroll-menu.js) #}
+      <div class="scroll-menu" x-data="scrollMenu([{% for j in jump %}'{{ j.id }}'{{ ',' if not loop.last }}{% endfor %}])" @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" class="scroll-btn" @click="toggle()" :aria-expanded="open" aria-haspopup="true" aria-label="Scroll to a section of this page" title="Scroll to a section of this page">
+          <svg width="14" height="18" viewBox="0 0 14 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l4-4 4 4"/><path d="M3 11l4 4 4-4"/></svg>
+        </button>
+        <div class="scroll-panel" x-show="open" x-cloak>
+          <div class="scroll-title">Scroll To</div>
+          {% for j in jump %}
+          <button type="button" class="scroll-item" :class="{ on: active === '{{ j.id }}' }" @click="go('{{ j.id }}')">{{ j.label }}</button>
+          {% if loop.first %}<div class="scroll-sep"></div>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
   </div>
 </form>
@@ -101,32 +127,29 @@
 {# "x of y jobs" under a percentage #}
 {% macro offcell(g) %}<b>{{ g.pctOff | pct }}</b> <small class="muted">{{ g.jobsOff }} of {{ g.jobs }}</small>{% endmacro %}
 
-{# Excess $ cell: the variance dollars beyond the green band (red = over the estimate, green = under it, grey = inside the band) #}
-{% macro excesscell(g) %}<span class="{{ 'neg-bad' if g.excess > 0 else ('neg-good' if g.excess < 0 else 'muted') }}" title="{{ (g.netDollars | smoney0) }} net variance, less the {{ (g.tolerance * 100) | round(1) }}% green band on {{ g.estDollars | money0 }} estimated">{{ g.excess | smoney0 }}</span>{% endmacro %}
 
 {# Operations table. rows = groups; href = link prefix for a row ('...&drill=op:' is added here). #}
 {% macro opTable(rows, base, selected, label='Operation') %}
 <table data-table="acc-ops" class="t t-fit acc-table" data-help-scope="accuracy">
   <thead><tr>
-    <th data-help="The operation code, or the resource group if you grouped by that. Click a row to see its setup / run split, trend, part numbers and jobs.">{{ label }}</th>
+    <th class="acc-descol" data-help="The operation code, or the resource group if you grouped by that. Click a row to see its setup / run split, trend, part numbers and jobs.">{{ label }}</th>
     <th class="num">Jobs</th><th class="num">Est Hrs</th><th class="num">Actual Hrs</th><th class="num">Var Hrs</th>
     <th class="num" data-help="Estimated dollars: the expected hours x (labour + burden rate), added up. The same hours as Est Hrs, in dollars.">Est $</th><th class="num" data-help="Actual dollars: the hours actually booked x (labour + burden rate), added up. The same hours as Actual Hrs, in dollars.">Act $</th>
-    <th class="num">Net Var $</th><th class="num">Excess $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
+    <th class="num">Net Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
   </tr></thead>
   <tbody>
   {% for g in rows %}
     <tr class="acc-row {{ 'sel' if selected == ('op:' + g.key) }}" data-href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill">
-      <td><a href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<br><small class="muted">{{ g.description }}</small>{% endif %}</td>
+      <td><a href="/accuracy/ops?{{ base }}&drill=op:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<span class="acc-desc" title="{{ g.description }}">{{ g.description }}</span>{% endif %}</td>
       <td class="num">{{ g.jobs }}</td><td class="num">{{ g.estHrs | hrs }}</td><td class="num">{{ g.actHrs | hrs }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.varHrs > 0 else ('neg-good' if g.varHrs < 0 else 'muted') }}">{{ g.varHrs | shrs }}</span></td>
       <td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
-      <td class="num">{{ excesscell(g) }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
       <td class="num">{{ offcell(g) }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="11" class="muted">Nothing here for these filters.</td></tr>
+    <tr><td colspan="10" class="muted">Nothing here for these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>
@@ -136,23 +159,22 @@
 {% macro mtlTable(rows, base, selected, label='Material') %}
 <table data-table="acc-mtl" class="t t-fit acc-table" data-help-scope="accuracy">
   <thead><tr>
-    <th data-help="The material part number, or its class if you grouped by that. Click a row to see its usage / price split, trend, part numbers and jobs.">{{ label }}</th>
+    <th class="acc-descol" data-help="The material part number, or its class if you grouped by that. Click a row to see its usage / price split, trend, part numbers and jobs.">{{ label }}</th>
     <th class="num">Jobs</th><th class="num">Exp Qty</th><th class="num">Issued Qty</th><th class="num">Est $</th><th class="num">Act $</th>
-    <th class="num">Net Var $</th><th class="num">Excess $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
+    <th class="num">Net Var $</th><th class="num">Avg Var %</th><th class="num">% Jobs Off</th>
   </tr></thead>
   <tbody>
   {% for g in rows %}
     <tr class="acc-row {{ 'sel' if selected == ('mtl:' + g.key) }}" data-href="/accuracy/ops?{{ base }}&drill=mtl:{{ g.key | urlencode }}#drill">
-      <td><a href="/accuracy/ops?{{ base }}&drill=mtl:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<br><small class="muted">{{ g.description }}</small>{% endif %}</td>
+      <td><a href="/accuracy/ops?{{ base }}&drill=mtl:{{ g.key | urlencode }}#drill"><b>{{ g.label }}</b></a>{% if g.description %}<span class="acc-desc" title="{{ g.description }}">{{ g.description }}</span>{% endif %}</td>
       <td class="num">{{ g.jobs }}</td><td class="num">{{ g.expQty | qty }}</td><td class="num">{{ g.actQty | qty }}</td>
       <td class="num">{{ g.estDollars | money0 }}</td><td class="num">{{ g.actDollars | money0 }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.netDollars > 0 else ('neg-good' if g.netDollars < 0 else 'muted') }}">{{ g.netDollars | smoney0 }}</span></td>
-      <td class="num">{{ excesscell(g) }}</td>
       <td class="num"><span class="{{ 'neg-bad' if g.avgPct > 0 else ('neg-good' if g.avgPct < 0 else 'muted') }}">{{ g.avgPct | spct }}</span></td>
       <td class="num">{{ offcell(g) }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="10" class="muted">Nothing here for these filters.</td></tr>
+    <tr><td colspan="9" class="muted">Nothing here for these filters.</td></tr>
   {% endfor %}
   </tbody>
 </table>

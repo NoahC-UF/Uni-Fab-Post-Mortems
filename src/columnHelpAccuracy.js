@@ -10,7 +10,6 @@ export const ACCURACY_HELP = {
   'accuracy.var hrs': 'Actual minus expected hours. Positive means over the estimate (it took longer than estimated).',
   'accuracy.net var $':
     'The signed dollar variances added up (hours x labour + burden rates for operations; estimated unit cost for material). Positive = jobs over the estimate, negative = under. Overs and unders cancel here, so read it together with Gross.',
-  'accuracy.excess $': "The dollars over (red) or under (green) the estimate that are beyond what the green band allows. Net Var $ less the green band % (Settings) of the estimated dollars. Inside the band it is $0, so a tiny item at a big % and a big item at a small % are both sized by what they really cost. The lists are ranked on it.",
   'accuracy.gross var $': "The SIZE of each line's variance added up. It shows the total inaccuracy even when overs and unders cancel out.",
   'accuracy.avg var %': 'Total variance divided by total estimate for the group: (actual - estimate) / estimate. Hours for operations, dollars for material and customers.',
   'accuracy.% jobs off':
