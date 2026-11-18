@@ -7,6 +7,7 @@ import { STATUS_LABELS } from '../format.js';
 import { getPref, setPref, deletePref } from '../prefs.js';
 import { CAUSE_LABELS } from '../economics.js';
 import { getSettings } from '../settings.js';
+import { drawingsFor } from '../drawings.js';
 import { GRID_COLUMNS, clientRows } from '../gridRows.js';
 import { normaliseColumnPref, parseColumnPrefBody } from '../columnPrefs.js';
 
@@ -152,7 +153,7 @@ export default async function jobRoutes(app) {
     if (!view) throw notFound(`Job ${jobNum}`);
     const pm = getPostMortemByJob(db, jobNum);
     const changes = pm ? snapshotChanges(db, pm).changes : [];
-    return reply.page('job_detail.njk', { v: view, pm, changes, rank: FLAG_RANK });
+    return reply.page('job_detail.njk', { v: view, pm, changes, rank: FLAG_RANK, drawings: drawingsFor(getSettings(db), jobNum) });
   });
 
   // Start a post-mortem: freezes a snapshot of the job's current numbers.

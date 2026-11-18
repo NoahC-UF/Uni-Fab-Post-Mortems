@@ -14,6 +14,7 @@ import { BAQ_MAP } from '../epicor/epicor_field_map.js';
 import { ROLES, createUser, hashPassword, validatePassword } from '../auth.js';
 import { MockSource } from '../mock/mockSource.js';
 import { parseCustomerFile, applyCustomers, orgSummary, exportWorkbook, exportCsv as orgCsv } from '../customerOrg.js';
+import { cleanRoot, cleanFolder } from '../drawings.js';
 import { TABLES, TABLE_IDS, FONT_SIZE, COL_WIDTH, LINE_SIZE, normaliseTableStyles, parseTableStyleForm } from '../tableStyles.js';
 
 const msg = (path, text, kind = 'ok') => `${path}?${kind}=${encodeURIComponent(text)}`;
@@ -216,6 +217,17 @@ export default async function settingsRoutes(app) {
     });
     const n = recomputeJobs(db);
     return reply.redirect(msg('/settings', `Settings saved. ${n} jobs were re-checked with the new rules.`));
+  });
+
+  // Where the PDF drawings are (the job page's Open Drawings button): display only, so nothing is re-checked
+  app.post('/settings/drawings', admin, async (req, reply) => {
+    const b = req.body ?? {};
+    const root = cleanRoot(b.drawingsRoot);
+    if (!root) throw new UserError('The drive must look like G:\\ or a network share like \\\\server\\share.');
+    const folder = cleanFolder(b.drawingsFolder);
+    if (folder === null) throw new UserError('The drawings folder must be one folder name (no slashes), or empty to open the job folder itself.');
+    setSettings(db, { drawingsRoot: root, drawingsFolder: folder });
+    return reply.redirect(msg('/settings#drawings', `Drawings folder saved: ${root}<job number>${folder ? `\\${folder}` : ''}`));
   });
 
   // Margin % colours: display only, so nothing is re-checked

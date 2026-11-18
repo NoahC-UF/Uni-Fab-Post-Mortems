@@ -16,6 +16,7 @@
   <a href="#thresholds">Thresholds and Rules</a>
   <a href="#overrides" class="sub">Overrides by Op Code or Resource Group</a>
   <a href="#margin-colours">Margin % Colours</a>
+  <a href="#drawings">Drawings Folder</a>
   <a href="#rates">Labour and Burden Rates</a>
   <a href="#causes">Root Cause List</a>
   <a href="#users">Users</a>
@@ -261,6 +262,21 @@
       <button type="button" class="btn" @click="example()" title="Replaces the list above with a starting set; nothing is saved until you press Save">Fill in an example</button>
       <button class="btn btn-primary" type="submit">Save margin colours</button>
     </div>
+  </form>
+</div>
+
+<!-- ================================================================ DRAWINGS FOLDER -->
+<div class="card" id="drawings">
+  <h2>Drawings Folder</h2>
+  <div class="muted">Where the PDF drawings are kept, for the <b>Open Drawings</b> button on a job page: the drive, then a folder named after the job number, then the folder below. Leave the folder empty to open the job's own folder. Each PC runs a one-time <a href="/tools/folder-button">setup</a> so the button can open File Explorer.</div>
+  <form method="post" action="/settings/drawings" class="stack">
+    {{ csrfField(csrf) }}
+    <div class="filters">
+      <label>Drive <small>G:\ or \\server\share</small><input name="drawingsRoot" value="{{ s.drawingsRoot }}" required maxlength="120"></label>
+      <label>Folder Inside Each Job <input name="drawingsFolder" value="{{ s.drawingsFolder }}" maxlength="80"></label>
+    </div>
+    <div class="muted">Example: {{ s.drawingsRoot }}092115-1-1{% if s.drawingsFolder %}\{{ s.drawingsFolder }}{% endif %}</div>
+    <div><button class="btn btn-primary" type="submit">Save drawings folder</button></div>
   </form>
 </div>
 
