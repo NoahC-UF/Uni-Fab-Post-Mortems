@@ -22,6 +22,7 @@
     fullH = pin.offsetHeight;
     pin.classList.add('is-compact');
     compactH = pin.offsetHeight;
+    document.documentElement.style.setProperty('--acc-compact-h', compactH + 'px'); // links to #sections land below the (shrunk) block
     if (!was) pin.classList.remove('is-compact');
     pin.style.marginBottom = was ? (fullH - compactH) + 'px' : '0px';
     void pin.offsetHeight;

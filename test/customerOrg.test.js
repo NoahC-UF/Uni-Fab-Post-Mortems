@@ -313,7 +313,7 @@ describe('the Customers page is kept compact', () => {
     const body = (await S.admin.get('/accuracy/customers')).body;
     assert.ok(!body.includes('acc-note'), 'the long note under the tiles is gone');
     assert.ok(!body.includes("Which customers' jobs, taken as a whole"), 'the paragraph under the title is gone');
-    assert.ok(body.includes('<h1 class="acc-title">Post-Mortem Review: Customers</h1>') && body.includes('Customers CSV') && body.includes('class="tiles tiles-6"'));
+    assert.ok(body.includes('<h1>Post-Mortem Review: Customers</h1>') && body.includes('Customers CSV') && body.includes('class="tiles tiles-6"'));
   });
 });
 

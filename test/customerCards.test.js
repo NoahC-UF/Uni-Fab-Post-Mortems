@@ -48,7 +48,7 @@ describe('the six cards on the Customers page: what is on screen', () => {
   let body;
   const tiles = (b) => {
     const out = {};
-    for (const m of b.matchAll(/<div class="tile ([^"]*)"><div class="label">([^<]*)<\/div><div class="value">([^<]*)<\/div><div class="sub">(.*?)<\/div><\/div>/gs)) out[m[2]] = { cls: m[1].trim(), value: m[3], sub: m[4] };
+    for (const m of b.matchAll(/<div class="tile ([^"]*)">(?:<div class="tile-short"[^>]*>.*?<\/div>)?<div class="label">([^<]*)<\/div><div class="value">([^<]*)<\/div><div class="sub">(.*?)<\/div><\/div>/gs)) out[m[2]] = { cls: m[1].trim(), value: m[3], sub: m[4] };
     return out;
   };
   before(async () => { S = await makeSession(); body = (await S.admin.get(`/accuracy/customers?${q}`)).body; });
@@ -102,7 +102,7 @@ describe('every card is two lines', () => {
 
   test('each card has exactly two lines of small print, and the Net Variance split is in short amounts', async () => {
     const body = (await S.admin.get(`/accuracy/customers?${q}`)).body;
-    const subs = [...body.matchAll(/<div class="tile [^"]*"><div class="label">([^<]*)<\/div><div class="value">[^<]*<\/div><div class="sub">(.*?)<\/div><\/div>/gs)];
+    const subs = [...body.matchAll(/<div class="tile [^"]*">(?:<div class="tile-short"[^>]*>.*?<\/div>)?<div class="label">([^<]*)<\/div><div class="value">[^<]*<\/div><div class="sub">(.*?)<\/div><\/div>/gs)];
     assert.equal(subs.length, 6);
     for (const m of subs) assert.equal(m[2].split('<br>').length, 2, `${m[1]}: two lines`);
     const net = subs.find((m) => m[1] === 'Net Variance')[2].split('<br>')[1];

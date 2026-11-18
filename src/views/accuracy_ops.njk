@@ -7,35 +7,34 @@
 {% endblock %}
 {% block content %}
 {% set f = d.filters %}
-<div class="page-head acc-head">
-  <div>
-    <h1 class="acc-title">Post-Mortem Review: Operations &amp; Materials</h1>
-  </div>
-  <div class="row no-print">
-    <a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=ops">&#8681; Operations CSV</a>
-    <a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=materials">&#8681; Materials CSV</a>
-  </div>
-</div>
-
 {% set jump = [{ 'id': 'sec-top', 'label': 'Overview' }] %}
 {% if dd %}{% set _ = jump.push({ 'id': 'drill', 'label': 'Drill-Down' }) %}{% endif %}
 {% set _ = jump.push({ 'id': 'sec-ops', 'label': 'Operations' }) %}{% set _ = jump.push({ 'id': 'sec-mtl', 'label': 'Materials' }) %}{% set _ = jump.push({ 'id': 'sec-chart', 'label': 'Biggest Net Variances' }) %}{% set _ = jump.push({ 'id': 'sec-unest', 'label': 'Unestimated Work' }) %}
-{{ filterBar(f, '/accuracy/ops', sorts, bases, true, hidden, presets, org, orders, [], jump) }}
+{# The same top block as the Customers pages: the heading and the date line at the left of the date row (the date buttons at the right), the page's own
+   buttons after the divider in the filter section, and the cards. Everything down to the cards stays on screen while the page scrolls and shrinks once
+   scrolled (see .acc-sticky in app.css and public/sticky-compact.js). #}
+{% set lead %}<div class="acc-titlebar"><h1>Post-Mortem Review: Operations &amp; Materials</h1></div><div class="muted acc-crumbs">{{ f.from }} to {{ f.to }}</div>{% endset %}
+{# The two CSV downloads share one menu button: this page has more filters than the others, so two full buttons would not fit on the filter row #}
+{% set actions %}<div class="scroll-menu csv-menu" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false"><button type="button" class="btn" @click="open = !open" :aria-expanded="open" aria-haspopup="true" title="Download these lists as CSV">&#8681; CSV &#9662;</button><div class="scroll-panel" x-show="open" x-cloak role="menu"><a class="scroll-item" role="menuitem" href="/accuracy/export.csv?{{ base }}&view=ops">Operations CSV</a><a class="scroll-item" role="menuitem" href="/accuracy/export.csv?{{ base }}&view=materials">Materials CSV</a></div></div>{% endset %}
+<div class="acc-sticky">
+{{ filterBar(f, '/accuracy/ops', sorts, bases, true, hidden, presets, org, orders, [], jump, lead, actions) }}
+
+<div class="tiles tiles-6">
+  {{ tile('Labour Variance', (d.opT.netDollars | smoney0), 'net &middot; gross ' ~ (d.opT.grossDollars | money0), 't-red' if d.opT.netDollars > 0 else 't-blue', '', 'Labour Var.') }}
+  {{ tile('Material Variance', (d.mtlT.netDollars | smoney0), 'net &middot; gross ' ~ (d.mtlT.grossDollars | money0), 't-red' if d.mtlT.netDollars > 0 else 't-blue', '', 'Material Var.') }}
+  {{ tile('Operation Accuracy', (d.opAccuracy | pct) if d.opAccuracy !== null else 'n/a', d.opT.linesOff ~ ' of ' ~ d.opT.lines ~ ' operations off', 't-green' if d.opAccuracy !== null and d.opAccuracy >= 0.8 else 't-yellow', '', 'Op. Accuracy') }}
+  {{ tile('Material Accuracy', (d.mtlAccuracy | pct) if d.mtlAccuracy !== null else 'n/a', d.mtlT.linesOff ~ ' of ' ~ d.mtlT.lines ~ ' material lines off', 't-green' if d.mtlAccuracy !== null and d.mtlAccuracy >= 0.8 else 't-yellow', '', 'Mat. Accuracy') }}
+  {{ tile('Needs Attention', (d.attentionCount.ops + d.attentionCount.mtls), d.attentionCount.ops ~ ' operations &middot; ' ~ d.attentionCount.mtls ~ ' materials', 't-yellow', '', 'Needs Attention') }}
+  {{ tile('Unestimated Work', (d.unestimated.actDollars | money0), d.unestimated.lines ~ ' lines with actuals but no estimate', '', '', 'Unestimated') }}
+</div>
+</div>{# /acc-sticky #}
+
 {{ orgNote(f, '/accuracy/ops', baseNoOrg) }}
 
 {% if custLabel %}
 <div class="flash flash-info">Showing only <b>{{ custLabel }}</b>. <a href="/accuracy/customers/{{ f.cust | urlencode }}?{{ base }}">Back to this customer</a> &middot; <a href="/accuracy/ops?{{ baseNoCust }}">All customers</a></div>
 {% endif %}
 {% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
-
-<div class="tiles">
-  {{ tile('Labour Variance', (d.opT.netDollars | smoney0), 'net &middot; gross ' ~ (d.opT.grossDollars | money0), 't-red' if d.opT.netDollars > 0 else 't-blue') }}
-  {{ tile('Material Variance', (d.mtlT.netDollars | smoney0), 'net &middot; gross ' ~ (d.mtlT.grossDollars | money0), 't-red' if d.mtlT.netDollars > 0 else 't-blue') }}
-  {{ tile('Operation Accuracy', (d.opAccuracy | pct) if d.opAccuracy !== null else 'n/a', d.opT.linesOff ~ ' of ' ~ d.opT.lines ~ ' operations off', 't-green' if d.opAccuracy !== null and d.opAccuracy >= 0.8 else 't-yellow') }}
-  {{ tile('Material Accuracy', (d.mtlAccuracy | pct) if d.mtlAccuracy !== null else 'n/a', d.mtlT.linesOff ~ ' of ' ~ d.mtlT.lines ~ ' material lines off', 't-green' if d.mtlAccuracy !== null and d.mtlAccuracy >= 0.8 else 't-yellow') }}
-  {{ tile('Needs Attention', (d.attentionCount.ops + d.attentionCount.mtls), d.attentionCount.ops ~ ' operations &middot; ' ~ d.attentionCount.mtls ~ ' materials', 't-yellow') }}
-  {{ tile('Unestimated Work', (d.unestimated.actDollars | money0), d.unestimated.lines ~ ' lines with actuals but no estimate', '') }}
-</div>
 {% if dd %}
 <!-- ============================================================ drill-down -->
 <div class="card acc-drill" id="drill">
@@ -147,7 +146,7 @@
 
 <!-- ============================================================ operations -->
 <div class="card" id="sec-ops">
-  <div class="page-head" style="margin-bottom:8px">
+  <div class="acc-cardhead">
     <h2>Operations <small class="muted">by {{ 'Resource Group' if f.opBy == 'rg' else 'Op Code' }}</small></h2>
     <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
       <a class="btn btn-sm {{ 'btn-primary' if f.opBy == 'op' }}" href="/accuracy/ops?{{ base }}&opBy=op">Op Code</a>
@@ -161,7 +160,7 @@
 
 <!-- ============================================================ materials -->
 <div class="card" id="sec-mtl">
-  <div class="page-head" style="margin-bottom:8px">
+  <div class="acc-cardhead">
     <h2>Materials <small class="muted">by {{ 'Material Class' if f.mtlBy == 'class' else 'Part Number' }}</small></h2>
     <div class="row no-print">{{ listPicker(f, '/accuracy/ops', listLinks, listViews) }}<span class="seg"><small class="muted">Group by</small>
       <a class="btn btn-sm {{ 'btn-primary' if f.mtlBy == 'part' }}" href="/accuracy/ops?{{ base }}&mtlBy=part">Part Number</a>
@@ -203,4 +202,4 @@
   {% else %}<div class="empty">No unestimated work in this period.</div>{% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/sticky-compact.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

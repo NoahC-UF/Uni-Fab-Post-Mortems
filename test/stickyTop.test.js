@@ -123,8 +123,4 @@ describe("one customer's page: the heading line, the pinned top block and how it
     assert.ok(Number(/\.multi-field \{ flex: 1 1 112px; max-width: (\d+)px;/.exec(all)[1]) >= 250, 'room to fill the row');
     assert.match(all, /\.acc-filters \.filters select[^{]*\{[^}]*height: 30px/, 'the same height as before');
   });
-
-  test('the other pages are unchanged (not pinned)', async () => {
-    for (const url of [`/accuracy/customers?${q}`, `/accuracy/ops?${q}`]) assert.ok(!(await S.admin.get(url)).body.includes('acc-sticky'), url);
-  });
 });

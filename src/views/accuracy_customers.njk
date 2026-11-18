@@ -6,42 +6,44 @@
 {% endblock %}
 {% block content %}
 {% set f = d.filters %}
-<div class="page-head acc-head">
-  <div>
-    <h1 class="acc-title">Post-Mortem Review: Customers</h1>
-  </div>
-  <div class="row no-print"><a class="btn btn-sm" href="/accuracy/export.csv?{{ base }}&view=customers">&#8681; Customers CSV</a></div>
-</div>
-
 {% set jump = [{ 'id': 'sec-top', 'label': 'Overview' }, { 'id': 'sec-customers', 'label': 'Customers' }, { 'id': 'bubbleFold', 'label': 'How Often vs How Far Off' }] %}
-{{ filterBar(f, '/accuracy/customers', sorts, bases, false, '', presets, org, orders, tops, jump) }}
-{{ orgNote(f, '/accuracy/customers', baseNoOrg) }}
-
-{% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
+{# The same top block as one customer's page: the heading and the date line at the left of the date row (the date buttons at the right), the page's own
+   button after the divider in the filter section, and the cards. Everything down to the cards stays on screen while the page scrolls and shrinks once
+   scrolled (see .acc-sticky in app.css and public/sticky-compact.js). #}
+{% set lead %}<div class="acc-titlebar"><h1>Post-Mortem Review: Customers</h1></div><div class="muted acc-crumbs">{{ f.from }} to {{ f.to }}</div>{% endset %}
+{% set actions %}<a class="btn" href="/accuracy/export.csv?{{ base }}&view=customers">&#8681; Customers CSV</a>{% endset %}
+<div class="acc-sticky">
+{{ filterBar(f, '/accuracy/customers', sorts, bases, false, '', presets, org, orders, tops, jump, lead, actions) }}
 
 <div class="tiles tiles-6">
   {% set s = d.shop %}
   {# Colours: green = good, yellow = below target / a warning, red = a loss or an overrun, blue = just information. #}
   {{ tile('Sold', (s.price | money0) if s.pricedJobs else 'n/a',
-      d.customers ~ ' customers &middot; ' ~ d.jobCount ~ ' jobs' ~ ('<br>' ~ s.pricedJobs ~ ' closed and priced' if s.pricedJobs else ''), 't-blue') }}
+      d.customers ~ ' customers &middot; ' ~ d.jobCount ~ ' jobs' ~ ('<br>' ~ s.pricedJobs ~ ' closed and priced' if s.pricedJobs else ''), 't-blue', '', 'Sold') }}
   {{ tile('Margin', ((s.marginPct * 100) | round(1) ~ '%') if s.marginPct !== null else 'n/a',
       (((((s.marginPct - s.targetMargin) * 100) | abs | round(1)) ~ ' pts ' ~ ('under' if s.marginPct < s.targetMargin else 'over') ~ ' ' ~ ((s.targetMargin * 100) | round(1)) ~ '% target<br>' ~ (s.margin | smoney0) ~ ' made') if s.pricedJobs else 'no priced closed jobs'),
-      't-red' if s.marginPct !== null and s.marginPct < 0 else ('t-green' if s.marginPct !== null and s.marginPct >= s.targetMargin else 't-yellow')) }}
+      't-red' if s.marginPct !== null and s.marginPct < 0 else ('t-green' if s.marginPct !== null and s.marginPct >= s.targetMargin else 't-yellow'), '', 'Margin') }}
   {{ tile('Margin vs Target $', (s.vsTarget | smoney0) if s.vsTarget !== null else 'n/a',
       (s.underTarget ~ ' of ' ~ s.pricedCustomers ~ ' customers under target<br>dollars vs their tier targets') if s.pricedJobs else 'no priced closed jobs',
-      't-red' if s.vsTarget !== null and s.vsTarget < 0 else ('t-green' if s.vsTarget !== null else '')) }}
+      't-red' if s.vsTarget !== null and s.vsTarget < 0 else ('t-green' if s.vsTarget !== null else ''), '', 'Mar. vs Tar. $') }}
   {{ tile('Customers at a Loss', (s.lossDollars | smoney0) if s.pricedJobs else 'n/a',
       (s.lossCustomers ~ ' of ' ~ s.pricedCustomers ~ ' customers lost money<br>their margins added up') if s.pricedJobs else 'no priced closed jobs',
-      't-red' if s.lossCustomers else 't-green') }}
+      't-red' if s.lossCustomers else 't-green', '', 'At a Loss') }}
   {{ tile('Net Variance', (s.netDollars | smoney0),
       'gross ' ~ (s.grossDollars | money0) ~ '<br>labour ' ~ (s.labourDollars | smoneyK) ~ ' &middot; material ' ~ (s.materialDollars | smoneyK) ~ ' &middot; other ' ~ (s.otherDollars | smoneyK),
-      't-red' if s.netDollars > 0 else 't-blue') }}
-  {{ tile('Customer-Level Accuracy', (s.accuracy | pct) if s.accuracy !== null else 'n/a', (s.pctOff | pct) ~ ' of jobs off, shop-wide<br>' ~ s.off ~ ' of ' ~ s.jobs ~ ' jobs were off', 't-green' if s.accuracy !== null and s.accuracy >= 0.8 else 't-yellow') }}
+      't-red' if s.netDollars > 0 else 't-blue', '', 'Net Var.') }}
+  {{ tile('Customer-Level Accuracy', (s.accuracy | pct) if s.accuracy !== null else 'n/a', (s.pctOff | pct) ~ ' of jobs off, shop-wide<br>' ~ s.off ~ ' of ' ~ s.jobs ~ ' jobs were off', 't-green' if s.accuracy !== null and s.accuracy >= 0.8 else 't-yellow', '', 'Accuracy') }}
 </div>
+</div>{# /acc-sticky #}
+
+{{ orgNote(f, '/accuracy/customers', baseNoOrg) }}
+
+{% if f.status == 'all' %}<div class="flash flash-info">In-progress jobs are included. Only their <b>completed</b> operations and <b>issued</b> material are compared, never a full estimate against partial actuals.</div>{% endif %}
+
 <div class="card" id="sec-customers">
-  <div class="page-head" style="margin-bottom:8px">
+  <div class="acc-cardhead">
     <h2>Customers</h2>
-    <div class="row no-print">{{ listPicker(f, '/accuracy/customers', listLinks, listViews) }}</div>
+    {{ listPicker(f, '/accuracy/customers', listLinks, listViews) }}
   </div>
   {{ lists(f,
     { 'title': 'Top ' ~ d.topN ~ ' Customers: Jobs Over Estimates', 'sub': 'actual > estimate', 'body': custTable(d.over, baseNoLists, d.targetMargin, marginBands), 'foot': d.overAll ~ ' over the estimate in all.' },
@@ -62,4 +64,4 @@
   {% else %}<div class="empty">No customers have {{ f.minJobs }} or more jobs for these filters.</div>{% endif %}
 </details>
 {% endblock %}
-{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/sticky-compact.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/accuracy.js" defer></script>{% endblock %}

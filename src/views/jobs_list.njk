@@ -6,26 +6,16 @@
 <script src="/vendor/tabulator/js/tabulator.min.js" defer></script>
 {% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>Flagged Jobs</h1>
-    <div class="muted">{{ total }} job{{ '' if total == 1 else 's' }} match. {% if lineFilter %}Ranked by the dollars each put into the bar you clicked, biggest first.{% else %}Ranked by total $ impact (labour + material), biggest first.{% endif %}</div>
-  </div>
-  <a class="btn" href="/jobs/export.xlsx{{ '?' + exportQuery if exportQuery }}">&#8681; Export to Excel</a>
-</div>
-
-{% if lineFilter %}
-<div class="flash flash-info line-filter">
-  Showing the jobs behind the <b>{{ lineFilter.op }} {{ 'over-runs' if lineFilter.dir == 'over' else 'under-runs' }}</b> bar on the Dashboard chart:
-  flagged <b>{{ lineFilter.op }}</b> lines that ran {{ lineFilter.dir }}, {{ f.from }} to {{ f.to }}. Together they make <b>{{ lineFilter.total | money0 }}</b>, shown in the <b>Matching Lines $</b> column.
-  <a class="btn btn-sm no-print" href="/jobs?from={{ f.from }}&to={{ f.to }}">Show all flagged jobs</a>
-</div>
-{% endif %}
-<form method="get" action="/jobs" class="card no-print">
-  {% if lineFilter %}<input type="hidden" name="lineOp" value="{{ f.lineOp }}"><input type="hidden" name="lineDir" value="{{ f.lineDir }}">{% endif %}
-  <div class="filters">
-    <label>Closed From <input type="date" name="from" value="{{ f.from }}"></label>
-    <label>Closed To <input type="date" name="to" value="{{ f.to }}"></label>
+{% from "_accuracy.njk" import filterBar %}
+{% set jump = [{ 'id': 'sec-top', 'label': 'Overview' }, { 'id': 'sec-jobs', 'label': 'Jobs' }] %}
+{# The same top block as the Accuracy pages: the heading and a line under it at the left of the date row (the quick date buttons and the dates at the right),
+   the filters, and after the divider the page's own button and the Scroll To arrow. It stays on screen while the page scrolls and shrinks once scrolled
+   (see .acc-sticky in app.css and public/sticky-compact.js). #}
+{% set lead %}<div class="acc-titlebar"><h1>Flagged Jobs</h1></div><div class="muted acc-crumbs">{{ total }} job{{ '' if total == 1 else 's' }} match. {% if lineFilter %}Ranked by the dollars each put into the bar you clicked, biggest first.{% else %}Ranked by total $ impact (labour + material), biggest first.{% endif %}</div>{% endset %}
+{% set actions %}<a class="btn" href="/jobs/export.xlsx{{ '?' + exportQuery if exportQuery }}" title="Export the jobs listed below to Excel">&#8681; Excel</a>{% endset %}
+{% set hidden %}{% if lineFilter %}<input type="hidden" name="lineOp" value="{{ f.lineOp }}"><input type="hidden" name="lineDir" value="{{ f.lineDir }}">{% endif %}{% endset %}
+{# the dates are in the date row above the filters (name="from" / "to"), so they are not repeated here #}
+{% set fields %}
     <label>Job Status
       <select name="status">
         <option value="all" {{ 'selected' if f.status == 'all' }}>Closed + in progress</option>
@@ -65,6 +55,7 @@
         {% for c in options.customers %}<option value="{{ c.id }}" {{ 'selected' if f.cust == c.id }}>{{ c.name }}</option>{% endfor %}
       </select>
     </label>
+    <span class="filter-sep" aria-hidden="true"></span>
     <div class="field">
       <div class="field-head"><label for="f_op">Op Code</label>
         <label class="check mini" title="Ticked: only jobs where this operation was flagged. Unticked: any job that has this operation, flagged or not."><input type="hidden" name="opFlagged" value="0"><input type="checkbox" name="opFlagged" value="1" {{ 'checked' if f.opFlagged }}> Flagged</label></div>
@@ -73,7 +64,7 @@
         {% for o in options.opCodes %}<option value="{{ o }}" {{ 'selected' if f.op == o }}>{{ o }}</option>{% endfor %}
       </select>
     </div>
-    <div class="field">
+    <div class="field f-wide">
       <div class="field-head"><label for="f_rg">Resource Group</label>
         <label class="check mini" title="Ticked: only jobs where this resource group had a flagged operation. Unticked: any job that uses this resource group, flagged or not."><input type="hidden" name="rgFlagged" value="0"><input type="checkbox" name="rgFlagged" value="1" {{ 'checked' if f.rgFlagged }}> Flagged</label></div>
       <select name="rg" id="f_rg">
@@ -82,8 +73,8 @@
       </select>
     </div>
     <label>Part Number <input name="part" value="{{ f.part }}" placeholder="contains..."></label>
-    <label>Job Number <input name="job" value="{{ f.job }}" placeholder="contains..."></label>
-    <label>Min $ Impact <input type="number" min="0" step="50" name="minImpact" value="{{ f.minImpact or '' }}"></label>
+    <label class="f-narrow">Job Number <input name="job" value="{{ f.job }}" placeholder="contains..."></label>
+    <label class="f-narrow">Min $ Impact <input type="number" min="0" step="50" name="minImpact" value="{{ f.minImpact or '' }}"></label>
     <label>Post-Mortem
       <select name="pm">
         <option value="">Any</option>
@@ -92,11 +83,29 @@
         <option value="closed" {{ 'selected' if f.pm == 'closed' }}>Closed / dismissed</option>
       </select>
     </label>
-    <label class="check noorder-check" title="Settings can leave out jobs that are not linked to a sales order (stock, maintenance, internal). Tick this to include them here."><input type="checkbox" name="noOrder" value="1" {{ 'checked' if f.noOrder }}> Include jobs with no sales order</label>
-    <div class="filter-actions"><a class="btn" href="/jobs">Reset</a><button class="btn btn-primary" type="submit">Apply filters</button></div>
-  </div>
-</form>
+    {# Other Options: the same drop-down as the Accuracy pages #}
+    <div class="multi-field">Other Options
+      <div class="multi" x-data="{ open: false, noOrder: {{ 'true' if f.noOrder else 'false' }}, text() { return this.noOrder ? '1 Selected' : 'None Selected'; } }" @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" class="multi-btn" @click="open = !open" :aria-expanded="open" aria-haspopup="true" x-text="text()">{{ '1 Selected' if f.noOrder else 'None Selected' }}</button>
+        <div class="multi-menu" x-show="open" x-cloak>
+          <label class="check" title="Settings can leave out jobs that are not linked to a sales order (stock, maintenance, internal). Tick this to include them here."><input type="checkbox" name="noOrder" value="1" x-model="noOrder" {{ 'checked' if f.noOrder }}> Include Jobs With No Sales Order</label>
+        </div>
+      </div>
+    </div>
+{% endset %}
+<div class="acc-sticky">
+{{ filterBar(f, '/jobs', [], [], false, hidden, presets, null, [], [], jump, lead, actions, fields) }}
+</div>
 
+{% if lineFilter %}
+<div class="flash flash-info line-filter">
+  Showing the jobs behind the <b>{{ lineFilter.op }} {{ 'over-runs' if lineFilter.dir == 'over' else 'under-runs' }}</b> bar on the Dashboard chart:
+  flagged <b>{{ lineFilter.op }}</b> lines that ran {{ lineFilter.dir }}, {{ f.from }} to {{ f.to }}. Together they make <b>{{ lineFilter.total | money0 }}</b>, shown in the <b>Matching Lines $</b> column.
+  <a class="btn btn-sm no-print" href="/jobs?from={{ f.from }}&to={{ f.to }}">Show all flagged jobs</a>
+</div>
+{% endif %}
+
+<div id="sec-jobs">
 {% if rows.length %}
 <div class="row no-print" style="margin-bottom:8px">
   {{ colmenu() }}
@@ -112,8 +121,9 @@
 <script type="application/json" id="colPrefs">{{ savedColumns | json | safe }}</script>
 {% else %}
 <div class="card"><div class="empty">No jobs match these filters.<br>
-  A job can be missing because of: the <b>Closed From / To</b> dates; <b>Flag</b> (choose "All jobs (flagged or not)"); <b>Over / Under</b>; <b>Likely Cause</b>;
-  <b>Include jobs with no sales order</b> (Settings leaves those out by default); or it is older than the sync window (Settings).</div></div>
+  A job can be missing because of: the <b>From / To</b> dates (closed dates); <b>Flag</b> (choose "All jobs (flagged or not)"); <b>Over / Under</b>; <b>Likely Cause</b>;
+  <b>Include Jobs With No Sales Order</b> in Other Options (Settings leaves those out by default); or it is older than the sync window (Settings).</div></div>
 {% endif %}
+</div>{# /sec-jobs #}
 {% endblock %}
-{% block scripts %}<script src="/static/job-columns.js" defer></script><script src="/static/jobs-table.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/multi-select.js"></script><script src="/static/scroll-menu.js"></script><script src="/static/sticky-compact.js"></script><script src="/static/scroll-memory.js"></script><script src="/static/job-columns.js" defer></script><script src="/static/jobs-table.js" defer></script>{% endblock %}

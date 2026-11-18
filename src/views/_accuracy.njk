@@ -12,15 +12,17 @@
 {# tops = the choices of the Show box (how many customers each list shows); only the Customers page passes them. #}
 {# lead = a short note (safe HTML) for the left end of the date row, level with the quick date buttons. #}
 {# actions = the page's own buttons (safe HTML, class btn): shown after the divider at the right of the filter section, left of the Scroll To arrow. #}
+{# fields = the page's own filter boxes (safe HTML) in the place of the Accuracy ones: only the Flagged Jobs page passes them. #}
 {# jump = the sections of the page for the Scroll To menu: [{ id, label }] in page order; the first has id 'sec-top' (the top of the page). #}
-{% macro filterBar(f, action, sorts, bases, ops=false, extraHidden='', presets=[], org=null, orders=[], tops=[], jump=[], lead='', actions='') %}
+{% macro filterBar(f, action, sorts, bases, ops=false, extraHidden='', presets=[], org=null, orders=[], tops=[], jump=[], lead='', actions='', fields='') %}
 <form method="get" action="{{ action }}" class="no-print acc-form"{% if jump.length %} data-sections="{% for j in jump %}{{ j.id }}{{ ',' if not loop.last }}{% endfor %}"{% endif %}>
   {{ extraHidden | safe }}
-  <input type="hidden" name="lists" value="{{ f.lists }}">
+  {% if not fields %}<input type="hidden" name="lists" value="{{ f.lists }}">{% endif %}
   {# the same date controls as the Dashboard; Apply here sends every filter below too #}
   <div class="row acc-datebar">{% if lead %}<div class="acc-lead">{{ lead | safe }}</div>{% endif %}<div class="date-tools">{{ presetButtons(presets) }}<span class="muted">|</span><span class="date-range">{{ dateFields(f.from, f.to) }}</span></div></div>
   <div class="card acc-filters">
   <div class="filters">
+    {% if fields %}{# another page's own filter boxes (the Flagged Jobs page): the same row, buttons and Scroll To as below #}{{ fields | safe }}{% else %}
     {# First group: which jobs and customers are counted. Second group (after the divider): how the lists are shown. #}
     {% if org %}
     {# Tier: tick one or more tiers (A and B, say); nothing ticked = all tiers #}
@@ -84,6 +86,7 @@
     <label>Group Materials By
       <select name="mtlBy"><option value="part" {{ 'selected' if f.mtlBy == 'part' }}>Part Number</option><option value="class" {{ 'selected' if f.mtlBy == 'class' }}>Material Class</option></select>
     </label>
+    {% endif %}
     {% endif %}
     <div class="filter-actions"><a class="btn" href="{{ action }}">Reset</a><button class="btn btn-primary" type="submit">Apply Filters</button></div>
     {% if jump.length or actions %}

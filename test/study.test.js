@@ -297,7 +297,7 @@ describe('study pages', () => {
     const withNoOrder = rowsOf((await S.reviewer.get(`${base}&flag=all&noOrder=1`)).body).length;
     assert.ok(withNoOrder > all, 'jobs with no sales order come back when asked for');
     const page = (await S.reviewer.get(`${base}&flag=all&noOrder=1`)).body;
-    assert.ok(page.includes('Include jobs with no sales order') && page.includes('All jobs (flagged or not)') && page.includes('id="studyAll"') && page.includes('id="studySelected"'));
+    assert.ok(page.includes('Include Jobs With No Sales Order') && page.includes('All jobs (flagged or not)') && page.includes('id="studyAll"') && page.includes('id="studySelected"'));
     assert.ok(page.includes('Study all'), 'the study-all button is on the page');
     void setSettings;
     void recomputeJobs;

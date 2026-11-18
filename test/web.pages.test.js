@@ -589,8 +589,8 @@ describe('settings', () => {
 
   test('Flagged Jobs: filter buttons read Reset then Apply, and filter labels are in Title Case', async () => {
     const body = (await S.admin.get('/jobs?from=2000-01-01&to=2100-01-01')).body;
-    assert.ok(body.indexOf('>Reset<') < body.indexOf('>Apply filters<'), 'Reset comes first, Apply to its right');
-    for (const t of ['Closed From', 'Job Status', 'Over / Under', 'Op Code', 'Resource Group', 'Min $ Impact', 'Post-Mortem']) assert.ok(body.includes(t), t);
+    assert.ok(body.indexOf('>Reset<') < body.indexOf('>Apply Filters<'), 'Reset comes first, Apply to its right');
+    for (const t of ['Last 30 days', 'Job Status', 'Over / Under', 'Op Code', 'Resource Group', 'Min $ Impact', 'Post-Mortem']) assert.ok(body.includes(t), t);
     const js = await S.admin.get('/static/job-columns.js');
     assert.match(js.body, /flag-dot/, 'the flag column is a dot');
     assert.match(js.body, /'Biggest Miss'/);

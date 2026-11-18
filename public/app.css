@@ -505,6 +505,9 @@ details.fold small { font-weight: 400; }
   .acc-sticky.is-compact .tiles .tile { height: 36px; }
   .acc-sticky.is-compact .tiles .tile > .label, .acc-sticky.is-compact .tiles .tile > .value, .acc-sticky.is-compact .tiles .tile > .sub { opacity: 0; }
   .acc-sticky.is-compact .tile-short { opacity: 1; transition-delay: calc(var(--acc-dur) * .4); } /* the full card fades out first, then the one-line card fades in */
+  /* a link to a spot on the page (#drill, #jobs) lands just below the pinned block, not under it: the shrunk height, set by sticky-compact.js */
+  html:has(.acc-sticky) { scroll-padding-top: calc(var(--topbar-h, 57px) + var(--acc-compact-h, 190px) + 12px); }
+  html:has(.acc-sticky) :is([id], #drill, #bubbleFold) { scroll-margin-top: 0; } /* the padding above already clears the top bar, so the 76px margin of the section ids would be counted twice */
   /* measuring, or opening part-way down the page: no animation */
   .acc-sticky.no-anim, .acc-sticky.no-anim * { transition: none !important; animation: none !important; }
 }
@@ -517,6 +520,10 @@ details.fold small { font-weight: 400; }
 .acc-filters { padding: 10px 14px; }
 .acc-filters .filters { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; }
 .acc-filters .filters > label, .acc-filters .filters > .multi-field { flex: 1 1 112px; max-width: 320px; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: .74rem; font-weight: 600; }
+/* the Flagged Jobs filters that carry their own "Flagged" tick box in the heading (Op Code, Resource Group) are sized like the others */
+.acc-filters .filters > .field { flex: 1 1 112px; max-width: 320px; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: .74rem; font-weight: 600; }
+.acc-filters .field-head > label { font-size: .74rem; font-weight: 600; white-space: nowrap; }
+.acc-filters .field-head .check.mini { font-size: .7rem; font-weight: 500; gap: 4px; }
 .acc-filters .filters > .f-narrow { flex: .45 1 88px; max-width: 140px; }
 .acc-filters .filters > .f-wide { flex-basis: 150px; max-width: 340px; }
 .acc-filters .filters select, .acc-filters .filters input:not([type=checkbox]):not([type=hidden]), .acc-filters .multi-btn { box-sizing: border-box; width: 100%; min-width: 0; max-width: none; height: 30px; padding: 0 8px; font-size: .8rem; font-weight: 400; line-height: 28px; }

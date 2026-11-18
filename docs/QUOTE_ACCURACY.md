@@ -103,6 +103,20 @@ Six cards sit above the lists. They cover the customers the filters leave in (so
 - **Net Variance**: actual minus estimated cost over all jobs, with the gross (size, ignoring direction) and the labour / material / other split. Red = over the estimates overall, blue = under.
 - **Customer-Level Accuracy**: the share of jobs that were not off. Green at 80% or more, yellow below (the 80% is fixed, not a setting).
 
+## The top of the Customers page
+
+The Customers page has the same pinned, shrinking top block as one customer's page (see below), with its own contents: the heading *Post-Mortem Review: Customers* and the date line (*dates*) at the left of the date row with the date buttons at the right, the filters, and the six cards. In the filter section, after the divider, the **Customers CSV** button sits left of the Scroll To arrow. Shrunk, the cards read *SOLD*, *MARGIN*, *MAR. VS TAR. $*, *AT A LOSS*, *NET VAR.* and *ACCURACY* with their value. The notes that only show sometimes (*Showing only tier A...*, *In-progress jobs are included*) sit just below the block, so it stays short. The Customers section's heading has the list layout box (**Show**) at its top right. The Customers page keeps its own default list layout (not side by side): its tables are wide.
+
+## The top of the Flagged Jobs page
+
+The Flagged Jobs page (a job list, not an Accuracy page) uses the same pinned, shrinking top block: the heading *Flagged Jobs* and the line *N jobs match. Ranked by...* at the left of the date row, the quick date buttons and the From / To dates at the right (they change the dates and keep every other filter), then the filters on one line. There are no cards on this page, so shrinking only fades the match-count line and brings the date buttons level with the heading. After the divider are the **Excel** export button and the Scroll To arrow (*Overview*, *Jobs*). The dates are no longer repeated in the filter boxes. *Include Jobs With No Sales Order* is now in an **Other Options** drop-down, like the Accuracy pages. The note about the Dashboard bar you clicked sits just below the block, and the page remembers where you were when a filter reloads it. The table, its Columns menu and the Study buttons are unchanged.
+
+## The top of the Operations & Materials page
+
+The same pinned, shrinking top block again: the heading *Post-Mortem Review: Operations & Materials* and the date line at the left of the date row (date buttons at the right), the filters and the six cards. Shrunk, the cards read *LABOUR VAR.*, *MATERIAL VAR.*, *OP. ACCURACY*, *MAT. ACCURACY*, *NEEDS ATTENTION* and *UNESTIMATED* with their value. This page has more filters than the others, so the two CSV downloads share **one CSV menu** (Operations CSV, Materials CSV) after the divider, left of the Scroll To arrow, which keeps the filter section on one line. The notes that only show sometimes (*Showing only <customer>*, *Showing only tier A...*, *In-progress jobs are included*) sit just below the block. In the Operations and Materials sections the **Show** box and the **Group by** buttons are at the top right of the section header. The list layout default is unchanged.
+
+A link to a spot lower on the page (a drill-down, *#drill* or *#jobs*) lands just below the pinned block, not under it. The same is true on the Customers pages.
+
 ## The top of one customer's page
 
 The heading, the date buttons, the filters and the seven cards below make up one block that **stays on screen while the rest of the page scrolls**, so the customer's figures are always in view. It pins only on a wide, tall window (at least 1,751 px wide, so all seven cards fit in one row, and at least 800 px tall); on a smaller window the page scrolls as usual.

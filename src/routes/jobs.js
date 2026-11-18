@@ -8,6 +8,7 @@ import { getPref, setPref, deletePref } from '../prefs.js';
 import { CAUSE_LABELS } from '../economics.js';
 import { getSettings } from '../settings.js';
 import { drawingsFor } from '../drawings.js';
+import { presetRanges } from './dashboard.js';
 import { GRID_COLUMNS, clientRows } from '../gridRows.js';
 import { normaliseColumnPref, parseColumnPrefBody } from '../columnPrefs.js';
 
@@ -27,8 +28,11 @@ export default async function jobRoutes(app) {
     const saved = getPref(db, req.user.id, COLUMNS_PREF);
     // Opened from a bar of the Dashboard chart: say what the list is, and what it adds up to.
     const lineFilter = f.lineOp && f.lineDir ? { op: f.lineOp, dir: f.lineDir, total: Math.round(rows.reduce((t, r) => t + (r.line_dollars || 0), 0)) } : null;
+    // the quick date buttons (the same as the Dashboard and the Accuracy pages): they change the dates and keep every other filter
+    const presets = presetRanges(now()).map((p) => ({ label: p.label, on: p.from === f.from && p.to === f.to, href: `/jobs?${filterQuery({ ...f, from: p.from, to: p.to }, defaults)}` }));
     return reply.page('jobs_list.njk', {
       f,
+      presets,
       lineFilter,
       rows: clientRows(rows),
       total: rows.length,
