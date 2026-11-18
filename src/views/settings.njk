@@ -268,7 +268,7 @@
 <!-- ================================================================ DRAWINGS FOLDER -->
 <div class="card" id="drawings">
   <h2>Drawings Folder</h2>
-  <div class="muted">Where the PDF drawings are kept, for the <b>Open Drawings</b> button on a job page: the drive, then a folder named after the job number, then the folder below. Leave the folder empty to open the job's own folder. Each PC runs a one-time <a href="/tools/folder-button">setup</a> so the button can open File Explorer.</div>
+  <div class="muted">Where the PDF drawings are kept, for the <b>Copy Drawing Path</b> button on a job page: the drive, then a folder named after the job number, then the folder below. Leave the folder empty to use the job's own folder. The button copies that address; paste it into File Explorer's address bar.</div>
   <form method="post" action="/settings/drawings" class="stack">
     {{ csrfField(csrf) }}
     <div class="filters">

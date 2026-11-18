@@ -219,7 +219,7 @@ export default async function settingsRoutes(app) {
     return reply.redirect(msg('/settings', `Settings saved. ${n} jobs were re-checked with the new rules.`));
   });
 
-  // Where the PDF drawings are (the job page's Open Drawings button): display only, so nothing is re-checked
+  // Where the PDF drawings are (the job page's Copy Drawing Path button): display only, so nothing is re-checked
   app.post('/settings/drawings', admin, async (req, reply) => {
     const b = req.body ?? {};
     const root = cleanRoot(b.drawingsRoot);

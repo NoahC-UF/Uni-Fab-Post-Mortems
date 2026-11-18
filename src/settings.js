@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS = {
   targetMarginPct: 20, // the margin a job should earn; the job page compares the planned and actual margin to it. The default: used for any customer without a tier target
   targetMarginByTier: {}, // { A: 30, B: 25, ... } a target for each customer tier (see targets.js); a tier not listed here uses targetMarginPct
   marginBandsVsTarget: { bands: [], top: null }, // colours for the Margin % columns by how far a margin is from its own target, in points (see marginBands.js); none = the standard colouring
-  drawingsRoot: 'G:\\', // the drive the job folders are on (the job page's Open Drawings button): G:\<job number>\<drawingsFolder>
+  drawingsRoot: 'G:\\', // the drive the job folders are on (the job page's Copy Drawing Path button): G:\<job number>\<drawingsFolder>
   drawingsFolder: '003 - PDF PRINTS', // the folder inside each job's folder that holds the PDF drawings
   baseCurrency: 'CAD', // prices come from Epicor in the company (base) currency
   autoSyncEnabled: true, // sync by itself once a day (not used in demo mode)

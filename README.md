@@ -89,10 +89,9 @@ Open **Settings**. Every change below re-checks all jobs immediately.
   material to the quantity made, whether to leave out jobs with no sales order (on by default).
 - **Overrides**: add an op code or resource group with its own limits.
 - **Rates**: type over any Epicor rate. Blank = use Epicor's.
-- **Drawings folder**: the drive (`G:\`) and folder name (`003 - PDF PRINTS`) behind the job page's **Open Drawings**
-  button, which opens `G:\<job number>\003 - PDF PRINTS` in File Explorer. Each Windows PC runs a one-time setup
-  file from **Settings > Drawings Folder > setup** (or the small "Set up" link on a job page); until then, **Copy Path**
-  copies the folder's address to paste into File Explorer. Not re-checked: display only.
+- **Drawings folder**: the drive (`G:\`) and folder name (`003 - PDF PRINTS`) behind the job page's **Copy Drawing Path**
+  button, which copies `G:\<job number>\003 - PDF PRINTS` to paste into File Explorer's address bar. Not re-checked:
+  display only.
 - **Root cause list**: add, rename or hide causes. Old reviews keep what they had.
 - **Users**: add people, set Admin or Reviewer, reset passwords, deactivate.
 
@@ -148,10 +147,6 @@ Right now the app is **local only** (just this PC). To let others on the network
 1. Right-click **`allow_network.bat`** and **Run as administrator** (opens just the app's port, private networks only).
 2. In `.env` add `HOST=0.0.0.0`, then restart the app.
 3. Others open **http://NCHACKO-LP:8080** (this PC's name and the port).
-
-Each coworker who will use **Open Drawings** on a job page also runs the one-time PC setup (see "Drawings folder"
-above): **http://NCHACKO-LP:8080/tools/folder-button**. It changes only their own Windows user, needs no administrator,
-and has a matching "remove" file. The handler script is `tools/folder-button/open-folder.ps1`; it can only open a folder.
 
 Notes: the app is plain HTTP, so passwords travel unencrypted on your network. That is normal for a
 small trusted office LAN; see "Moving to a server" for HTTPS. This PC must be on and awake. To undo:

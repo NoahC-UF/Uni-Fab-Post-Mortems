@@ -31,7 +31,6 @@ import settingsRoutes from './routes/settings.js';
 import reportRoutes from './routes/report.js';
 import studyRoutes from './routes/study.js';
 import accuracyRoutes from './routes/accuracy.js';
-import toolRoutes from './routes/tools.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -186,8 +185,6 @@ export async function buildApp({ cfg, db, logger = null, now = () => new Date() 
   await app.register(reportRoutes);
   await app.register(studyRoutes);
   await app.register(accuracyRoutes);
-  await app.register(toolRoutes);
-
   const sweep = setInterval(() => purgeExpiredSessions(db, now()), 3600_000);
   sweep.unref();
   app.addHook('onClose', async () => clearInterval(sweep));

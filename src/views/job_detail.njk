@@ -26,9 +26,7 @@
   </div>
   <div class="row no-print" x-data="{ dismiss: false }">
     {% set drawingsButtons %}{% if drawings %}
-      <a class="btn" id="openDrawings" href="{{ drawings.href }}" title="Open {{ drawings.path }} in File Explorer (this PC needs the one-time setup)">Open Drawings</a>
-      <button class="btn" type="button" id="copyDrawingsPath" data-copy="{{ drawings.path }}" title="Copy {{ drawings.path }} to paste into File Explorer's address bar">Copy Path</button>
-      <a class="muted" href="/tools/folder-button" title="Set up this PC so Open Drawings works">Set up</a>
+      <button class="btn" type="button" id="copyDrawingsPath" data-copy="{{ drawings.path }}" title="Copy {{ drawings.path }} to paste into File Explorer's address bar">Copy Drawing Path</button>
     {% endif %}{% endset %}
     {% if pm %}
       <a class="btn btn-primary" href="/postmortems/{{ pm.id }}">Open post-mortem</a>
